@@ -1,0 +1,107 @@
+/* ClassFlow Liquid Glass — warm iOS-inspired translucency with motion kept calm and accessible. */
+:root {
+  --liquid-edge: rgba(255, 255, 255, .82);
+  --liquid-tint: rgba(255, 255, 255, .38);
+  --liquid-shadow: 0 20px 48px rgba(75, 62, 47, .085), 0 3px 10px rgba(75, 62, 47, .045);
+}
+
+.glass-panel {
+  background:
+    radial-gradient(130% 100% at 0% 0%, rgba(255,255,255,.76), transparent 54%),
+    linear-gradient(140deg, rgba(255,255,255,.56), rgba(255,255,255,.32) 55%, rgba(235,229,218,.34));
+  border-color: var(--liquid-edge);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.96), inset 0 -1px 0 rgba(132,115,92,.055), var(--liquid-shadow);
+  -webkit-backdrop-filter: blur(24px) saturate(1.38);
+  backdrop-filter: blur(24px) saturate(1.38);
+  transition: border-color .28s ease, box-shadow .28s ease, background-color .28s ease;
+}
+
+.desktop-sidebar.glass-panel {
+  background:
+    radial-gradient(120% 80% at 12% 0%, rgba(255,255,255,.74), transparent 58%),
+    linear-gradient(155deg, rgba(248,246,240,.82), rgba(238,233,224,.70));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.96), 0 20px 52px rgba(75,62,47,.085);
+}
+
+.mobile-nav.glass-panel {
+  background: linear-gradient(145deg, rgba(255,255,255,.82), rgba(241,237,229,.74));
+  border-color: rgba(255,255,255,.92);
+  box-shadow: inset 0 1px 0 white, 0 12px 36px rgba(63,53,42,.15);
+  -webkit-backdrop-filter: blur(28px) saturate(1.48);
+  backdrop-filter: blur(28px) saturate(1.48);
+}
+
+.resource-card.glass-panel,
+.feature-card.glass-panel,
+.person-card.glass-panel,
+.admin-tile.glass-panel,
+.integration-card.glass-panel,
+.copilot-match.glass-panel,
+.auth-visual-card.glass-panel {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.resource-card.glass-panel::before,
+.feature-card.glass-panel::before,
+.person-card.glass-panel::before,
+.admin-tile.glass-panel::before,
+.integration-card.glass-panel::before,
+.copilot-match.glass-panel::before,
+.auth-visual-card.glass-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  background: radial-gradient(115% 80% at 0% 0%, rgba(255,255,255,.45), transparent 60%);
+}
+
+.resource-card.glass-panel:hover,
+.feature-card.glass-panel:hover,
+.person-card.glass-panel:hover,
+.admin-tile.glass-panel:hover,
+.integration-card.glass-panel:hover,
+.copilot-match.glass-panel:hover {
+  border-color: rgba(255,255,255,.98);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.98), 0 24px 52px rgba(75,62,47,.12), 0 0 0 1px rgba(255,255,255,.22);
+}
+
+.button-primary {
+  background-image: linear-gradient(120deg, rgba(255,255,255,.13), transparent 40%), linear-gradient(135deg,#96af98,#829f86);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.48), 0 8px 20px rgba(93,127,99,.24);
+}
+.button-primary:focus-visible,
+.button-secondary:focus-visible,
+.icon-button:focus-visible,
+.side-link:focus-visible,
+.mobile-link:focus-visible,
+.mobile-add:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(117,151,123,.42);
+  outline-offset: 3px;
+}
+
+.side-link.selected {
+  background: linear-gradient(120deg, rgba(255,255,255,.48), rgba(145,169,149,.22));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.92), 0 5px 16px rgba(93,127,99,.08);
+}
+
+.copilot-orb { animation: orb-breathe 4.6s ease-in-out infinite; }
+@keyframes orb-breathe {
+  0%, 100% { transform: translateY(0) scale(1); box-shadow: 0 8px 20px rgba(109,139,113,.17); }
+  50% { transform: translateY(-2px) scale(1.035); box-shadow: 0 12px 26px rgba(109,139,113,.24); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .copilot-orb { animation: none !important; }
+  .glass-panel, .button, .side-link, .icon-button { transition: none !important; }
+}
+
+@media (max-width: 760px) {
+  .glass-panel { -webkit-backdrop-filter: blur(20px) saturate(1.3); backdrop-filter: blur(20px) saturate(1.3); }
+}

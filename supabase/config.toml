@@ -1,0 +1,43 @@
+project_id = "classflow"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173", "https://*.e2b.app"]
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+enable_confirmations = false
+secure_password_change = true
+
+[storage]
+file_size_limit = "50MiB"
+
+[functions.copilot]
+verify_jwt = false
+
+[functions.index-resource]
+verify_jwt = false
+
+[functions.call-token]
+verify_jwt = false
+
+[functions.student-login]
+verify_jwt = false
