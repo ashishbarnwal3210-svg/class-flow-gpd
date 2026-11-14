@@ -1,25 +1,14 @@
-# ClassFlow: GitHub + Vercel quick deploy
+# ClassFlow production and updates
 
-The project is already configured in Vercel as `class-flow-gpd`, but Vercel needs the source code in a Git repository before it can build and host the site.
+- Live app: https://class-flow-gpd.vercel.app
+- GitHub: https://github.com/ashishbarnwal3210-svg/class-flow-gpd (`main`)
+- Vercel project `class-flow-gpd` is connected to the GitHub repository. Commits pushed to `main` trigger a Vercel deployment automatically.
+- Vercel already has the browser-safe Supabase URL and publishable key; Supabase Auth's production Site URL and redirect allow-list are configured.
 
-## 1. Create a GitHub repository and upload the source
+## Updating the site
 
-1. Download `ClassFlow-source.zip` and unzip it on your computer.
-2. On GitHub, create a **new empty repository** named `class-flow-gpd` (private is fine). Do not add a README, license, or `.gitignore` during creation.
-3. In the new repository, choose **Add file → Upload files**. Drag the **contents** of the extracted project folder into the upload area (do not upload the ZIP itself). Commit the upload to the `main` branch.
-4. Do not upload or share `.env.local`, passwords, a Supabase service-role key, or other provider secrets. `.env.local` is intentionally not in this archive.
+Make requested UI/code changes in the authorized coding session or a local checkout, test them, then commit and push to `main`. Vercel builds and deploys that commit. Never commit `.env.local`, Supabase service-role keys, AI provider secrets, or GitHub tokens. The repository is currently public; it contains source and placeholder-only `.env.example` values.
 
-## 2. Connect the repo to the existing Vercel project
+## Integrations not yet enabled
 
-1. Open Vercel and select the existing project `class-flow-gpd`.
-2. Go to **Settings → Git → Connect Git Repository**, select the repository, and confirm the production branch is `main`.
-3. In **Settings → Environment Variables**, add these two browser-safe variables for **Production**, **Preview**, and **Development**:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
-4. Save, then redeploy. The project already has Vite build settings (`npm run build`, output `dist`) and SPA rewrites configured.
-
-Once the repository is connected, future commits to `main` deploy automatically. The publishable/anon key is intended for browser use; never add the Supabase service-role key or AI provider secrets as `VITE_` variables.
-
-## 3. Finish Supabase redirect setup
-
-After Vercel gives the site a production URL, add that exact URL to Supabase **Authentication → URL Configuration** as the Site URL and an allowed redirect URL. Then verify login and account workflows on the live site.
+LiveKit audio/video calling and document indexing remain unconfigured. They require their own providers and server-side secrets; they are not needed for the core site.
