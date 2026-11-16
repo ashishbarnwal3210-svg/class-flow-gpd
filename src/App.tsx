@@ -32,8 +32,53 @@ function App() {
   const [authLoading, setAuthLoading] = useState(backendConfigured);
   const [menuOpen, setMenuOpen] = useState(false);
   const [notificationsOpen,setNotificationsOpen]=useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [showInstallBanner, setShowInstallBanner] = useState(true);
+  const [showInstallModal, setShowInstallModal] = useState(false);
   const location = useLocation();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const isStandaloneMode = typeof window.matchMedia === 'function' 
+      ? window.matchMedia('(display-mode: standalone)').matches 
+      : Boolean((window.navigator as any)?.standalone);
+    setIsStandalone(Boolean(isStandaloneMode));
+
+    const handleBeforeInstall = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallBanner(true);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+
+    const handleAppInstalled = () => {
+      setIsStandalone(true);
+      setDeferredPrompt(null);
+      setShowInstallBanner(false);
+    };
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const choice = await deferredPrompt.userChoice;
+      if (choice?.outcome === 'accepted') {
+        setIsStandalone(true);
+        setDeferredPrompt(null);
+        setShowInstallBanner(false);
+      }
+    } else {
+      setShowInstallModal(true);
+    }
+  };
   const campusUpdates=useQuery({queryKey:['campus-updates',user?.id],enabled:!!supabase&&!!user,queryFn:async()=>{const {data,error}=await requireBackend().from('notices').select('id,title,body,priority,created_at').eq('is_published',true).is('deleted_at',null).order('created_at',{ascending:false}).limit(6);if(error)throw error;return data??[];}});
   useEffect(()=>{setNotificationsOpen(false);},[location.pathname]);
   useEffect(() => {
@@ -90,6 +135,12 @@ function App() {
         <div className="mobile-brand"><Link to="/" className="brand"><img className="brand-glyph" src="/classflow-mark.webp" alt=""/><span>ClassFlow</span></Link></div>
         <div className="breadcrumbs"><span>ClassFlow</span><span className="crumb-slash">/</span><b>{pageTitle}</b></div>
         <div className="top-actions">
+          {!isStandalone && (
+            <button className="install-header-btn" onClick={handleInstallApp} title="Install ClassFlow App on your phone">
+              <ArrowDownToLine size={15}/>
+              <span>Install App</span>
+            </button>
+          )}
           <Link to="/library" className="top-search"><Search size={16}/><span>Search resources...</span><kbd>⌘ K</kbd></Link>
           <div className="notification-wrap"><button className="icon-button notification-button" title="Campus updates" aria-label="Campus updates" aria-expanded={notificationsOpen} onClick={()=>{setNotificationsOpen(v=>!v);if(user)void campusUpdates.refetch();}}><Bell size={17}/>{!!campusUpdates.data?.length&&<span className="notification-count">{campusUpdates.data.length>9?'9+':campusUpdates.data.length}</span>}</button>{notificationsOpen&&<div className="campus-updates-popover"><div className="campus-updates-heading"><div><span className="eyebrow">CAMPUS UPDATES</span><b>Latest notices</b></div><button type="button" className="icon-button tiny" onClick={()=>setNotificationsOpen(false)} aria-label="Close campus updates"><X size={14}/></button></div>{!user?<p className="campus-updates-empty">Sign in to view campus notices.</p>:campusUpdates.isLoading?<p className="campus-updates-empty">Loading campus updates…</p>:campusUpdates.isError?<button className="campus-updates-empty retry" onClick={()=>void campusUpdates.refetch()}>Couldn’t load notices. Tap to retry.</button>:campusUpdates.data?.length?campusUpdates.data.map((notice:any)=><article className="campus-update-item" key={notice.id}><span className={`notice-symbol ${notice.priority==='urgent'?'urgent':''}`}>{notice.priority==='urgent'?'!':<Megaphone size={14}/>}</span><div><b>{notice.title}</b><p>{notice.body}</p><small>{relativeTime(notice.created_at)} · {notice.priority}</small></div></article>):<p className="campus-updates-empty">You’re all caught up. New campus notices will appear here.</p>}<Link to="/dashboard" className="campus-updates-footer" onClick={()=>setNotificationsOpen(false)}>Open campus bulletin <ArrowRight size={13}/></Link></div>}</div>
           <div className="user-menu-wrap"><button className="user-menu" onClick={() => setMenuOpen(!menuOpen)}><Avatar name={user?.full_name ?? 'Guest'} small/><ChevronDown size={13}/></button>
@@ -97,6 +148,25 @@ function App() {
           </div>
         </div>
       </header>
+      {!isStandalone && showInstallBanner && (
+        <div className="install-bar">
+          <div className="install-bar-content">
+            <img src="/classflow-mark.webp" alt="ClassFlow" className="install-bar-icon" />
+            <div className="install-bar-text">
+              <b>Install ClassFlow App</b>
+              <span>Fast, full-screen campus access right from your home screen</span>
+            </div>
+          </div>
+          <div className="install-bar-btns">
+            <button className="button primary small install-bar-action" onClick={handleInstallApp}>
+              <ArrowDownToLine size={13}/> Install
+            </button>
+            <button className="icon-button tiny install-bar-close" onClick={() => setShowInstallBanner(false)} aria-label="Dismiss banner">
+              <X size={13}/>
+            </button>
+          </div>
+        </div>
+      )}
       {!backendConfigured && <div className="setup-banner"><span className="setup-icon"><AlertCircle size={16}/></span><div><b>Connect your ClassFlow backend</b><span>Add Supabase project credentials to enable accounts, campus data, uploads and live features.</span></div><Link to="/settings">Setup guide <ArrowRight size={14}/></Link></div>}
       <motion.div key={location.pathname} className="page-content" initial={{opacity:0,y:9,filter:'blur(4px)'}} animate={{opacity:1,y:0,filter:'blur(0px)'}} transition={{duration:.34,ease:[.22,1,.36,1]}}><Routes>
         <Route path="/" element={<Welcome user={user}/>}/>
@@ -120,6 +190,46 @@ function App() {
         <MobileLink to="/profile" icon={<UserRound size={19}/>} label="You"/>
       </nav>
       <ToastViewport/>
+      {showInstallModal && (
+        <div className="profile-post-backdrop" onClick={() => setShowInstallModal(false)}>
+          <div className="install-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="install-dialog-head">
+              <img src="/classflow-mark.webp" alt="ClassFlow" className="install-dialog-icon"/>
+              <div>
+                <h3>Install ClassFlow App</h3>
+                <p>Run ClassFlow directly from your phone's home screen.</p>
+              </div>
+              <button className="icon-button tiny" onClick={() => setShowInstallModal(false)}><X size={15}/></button>
+            </div>
+            <div className="install-steps">
+              <div className="install-step">
+                <span className="step-num">1</span>
+                <div>
+                  <b>Android (Chrome):</b>
+                  <p>Tap the 3 dots <b>(⋮)</b> in the top right corner of Chrome, then select <b>"Install app"</b> or <b>"Add to Home screen"</b>.</p>
+                </div>
+              </div>
+              <div className="install-step">
+                <span className="step-num">2</span>
+                <div>
+                  <b>iPhone (Safari):</b>
+                  <p>Tap the <b>Share</b> button at the bottom, then choose <b>"Add to Home Screen"</b>.</p>
+                </div>
+              </div>
+              <div className="install-step">
+                <span className="step-num">3</span>
+                <div>
+                  <b>Live Auto-Updates:</b>
+                  <p>Any updates or new notes added to ClassFlow appear instantly — no manual APK updating needed!</p>
+                </div>
+              </div>
+            </div>
+            <div className="install-dialog-footer">
+              <button className="button primary small" onClick={() => setShowInstallModal(false)}>Got it</button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   </div></MotionConfig>;
 }
