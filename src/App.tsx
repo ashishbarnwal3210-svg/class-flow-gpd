@@ -661,6 +661,37 @@ function AdminPage({user}:{user:Profile|null}) {
 }
 
 function SettingsPage({user}:{user:Profile|null}) { return <><PageHeading eyebrow="PLATFORM PREFERENCES" title="Settings & integrations" description="Connect the services that bring your ClassFlow campus to life."/><div className="settings-intro glass-panel"><span className="setting-lock"><LockKeyhole size={18}/></span><div><h3>Credentials stay server-side</h3><p>Supabase's public client key is designed for browser use under RLS. Service-role keys, AI credentials and LiveKit secrets must only be saved through a protected server-side configuration endpoint.</p></div><span className="security-badge"><ShieldCheck size={14}/> Secrets server-side</span></div><div className="integration-card glass-panel"><div className="integration-logo supabase-logo">S</div><div className="integration-details"><span className="integration-type">DATABASE & AUTH</span><h3>Supabase</h3><p>Postgres, accounts, private file storage and realtime updates.</p></div><span className={`status-pill ${backendConfigured?'connected':'not-connected'}`}><i/>{backendConfigured?'Client configured':'Not configured'}</span><div className="integration-footer"><div className="integration-footnote">{backendConfigured?'Project URL and publishable key detected in the browser build.':'The project URL and public/publishable key initialize the browser client.'}</div><button className="button button-secondary compact" onClick={()=>toast(backendConfigured?'Supabase client is configured. Verify server access in your project dashboard.':'See the .env.example and README for the secure initial setup steps.')}><CircleHelp size={14}/> Setup instructions</button></div></div>
+  <div className="integration-card glass-panel" style={{marginTop: '16px'}}>
+    <div className="integration-logo" style={{background: '#718c75', color: '#fff', fontSize: '13px', fontWeight: 700}}>PWA</div>
+    <div className="integration-details">
+      <span className="integration-type">PWA & OFFLINE ENGINE</span>
+      <h3>ClassFlow Offline Engine</h3>
+      <p>Service Worker v3 active. Notes and campus resources are cached for offline study.</p>
+    </div>
+    <span className="status-pill connected"><i/>Ready</span>
+    <div className="integration-footer">
+      <div className="integration-footnote">Version 1.2.0 (Offline Mode & Mascot active)</div>
+      <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
+        <Link to="/offline" className="button button-secondary compact">
+          <Eye size={14}/> Preview Offline Screen
+        </Link>
+        <button className="button button-secondary compact" onClick={async () => {
+          if ('caches' in window) {
+            const names = await caches.keys();
+            await Promise.all(names.map(name => caches.delete(name)));
+          }
+          if ('serviceWorker' in navigator) {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(regs.map(r => r.unregister()));
+          }
+          toast('Caches cleared! Reloading fresh version…');
+          setTimeout(() => window.location.reload(), 600);
+        }}>
+          <RefreshCw size={14}/> Force Update & Reload
+        </button>
+      </div>
+    </div>
+  </div>
   <div className="integrations-grid"><IntegrationCard icon={<Sparkles size={18}/>} name="AI provider" detail="Groq Llama 3.3 · server-side · 40 requests/day" status="Key stored · test pending" configured/><IntegrationCard icon={<Activity size={18}/>} name="LiveKit" detail="Secure audio and video calls" status="Not configured"/><IntegrationCard icon={<Send size={18}/>} name="Email provider" detail="Transactional campus notifications" status="Not configured"/></div>
   <div className="safe-config-note"><ShieldCheck size={17}/><div><b>Provider keys stay out of the browser</b><p>Groq credentials are stored as Supabase Edge Function secrets and are never included in this frontend. The key is configured, but a successful model response still needs an authenticated Copilot smoke test. Rotate it through Supabase secrets management. Document extraction, embeddings and LiveKit remain separate integrations.</p></div></div>
   <div className="settings-footer"><span>Signed in as {user?.full_name||'Guest'}</span><span>Application setup guide is included in <code>README.md</code></span></div></>; }

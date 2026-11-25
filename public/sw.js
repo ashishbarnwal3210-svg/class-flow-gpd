@@ -1,4 +1,4 @@
-const CACHE_NAME = 'classflow-cache-v2';
+const CACHE_NAME = 'classflow-cache-v3';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -35,41 +35,52 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
 
-  // Skip API or external calls (e.g. Supabase, external CDNs)
+  // Skip external or non-http requests (e.g. Supabase API)
   if (url.origin !== self.location.origin) return;
 
-  // SPA navigation requests (e.g. page reloads while offline)
+  // SPA navigation requests (e.g. HTML pages, route transitions)
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          if (response && response.status === 200) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          }
           return response;
         })
         .catch(() => {
-          return caches.match(event.request).then((res) => res || caches.match('/') || caches.match('/index.html') || caches.match('/offline.html'));
+          return caches.match(event.request).then((res) => {
+            return res || caches.match('/') || caches.match('/index.html') || caches.match('/offline.html');
+          });
         })
     );
     return;
   }
 
-  // Static assets (JS, CSS, images, fonts)
+  // Network-first with cache fallback for same-origin static assets
+  // Ensures fresh updates are served immediately when online, while still working 100% offline
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const fetchPromise = fetch(event.request).then((networkRes) => {
+    fetch(event.request)
+      .then((networkRes) => {
         if (networkRes && networkRes.status === 200) {
           const copy = networkRes.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
         }
         return networkRes;
-      }).catch(() => null);
-
-      return cached || fetchPromise;
-    })
+      })
+      .catch(() => {
+        return caches.match(event.request);
+      })
   );
 });
