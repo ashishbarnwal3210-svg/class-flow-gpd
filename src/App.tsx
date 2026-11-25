@@ -36,8 +36,46 @@ function App() {
   const [isStandalone, setIsStandalone] = useState(false);
   const [showInstallBanner, setShowInstallBanner] = useState(true);
   const [showInstallModal, setShowInstallModal] = useState(false);
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [checkingConnection, setCheckingConnection] = useState(false);
   const location = useLocation();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleOnline = () => {
+      setIsOnline(true);
+      toast('Back online! Reconnected to campus.');
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      toast('You are currently offline. Viewing cached notes.');
+    };
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  const handleRetryConnection = async () => {
+    setCheckingConnection(true);
+    try {
+      const res = await fetch('/manifest.json?t=' + Date.now(), { cache: 'no-store' });
+      if (res.ok) {
+        setIsOnline(true);
+        toast('Connected! You are back online.');
+        window.location.reload();
+        return;
+      }
+    } catch {
+      // still offline
+    } finally {
+      setCheckingConnection(false);
+    }
+    toast('Still offline. Please check your WiFi or mobile data.');
+  };
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -148,6 +186,18 @@ function App() {
           </div>
         </div>
       </header>
+      {!isOnline && (
+        <div className="offline-top-strip">
+          <div className="offline-top-strip-left">
+            <span className="offline-pulse-dot" />
+            <span><b>Offline Study Mode</b> — You can still read previously opened & cached notes.</span>
+          </div>
+          <button className="button button-secondary compact tiny" onClick={handleRetryConnection} disabled={checkingConnection} style={{fontSize: '10px', minHeight: '26px', padding: '0 9px', gap: '4px'}}>
+            <RefreshCw className={checkingConnection ? "spin" : ""} size={12}/>
+            <span>{checkingConnection ? 'Checking…' : 'Retry'}</span>
+          </button>
+        </div>
+      )}
       {!isStandalone && showInstallBanner && (
         <div className="install-bar">
           <div className="install-bar-content">
@@ -180,6 +230,7 @@ function App() {
         <Route path="/profile" element={<ProfilePage user={user} onUpdate={loadProfile}/>}/>
         <Route path="/admin" element={<AdminPage user={user}/>}/>
         <Route path="/settings" element={<SettingsPage user={user}/>}/>
+        <Route path="/offline" element={<OfflineCard onRetry={handleRetryConnection} isChecking={checkingConnection}/>}/>
         <Route path="*" element={<Welcome user={user}/>}/>
       </Routes></motion.div>
       <nav className="mobile-nav glass-panel" aria-label="Main navigation">
@@ -242,6 +293,46 @@ function PageHeading({eyebrow,title,description,action}:{eyebrow?:string;title:s
 function DataState({title='Nothing here yet',text='Once your campus is connected, information will appear here.',icon=<FolderOpen size={22}/>,action}:{title?:string;text?:string;icon?:React.ReactNode;action?:React.ReactNode}) { return <div className="empty-state"><span className="empty-icon">{icon}</span><h3>{title}</h3><p>{text}</p>{action}</div>; }
 function BackendGate({user,feature}:{user:Profile|null;feature:string}) { if (!backendConfigured) return <div className="inline-notice"><AlertCircle size={17}/><span><b>Backend setup needed.</b> {feature} becomes available after the Supabase setup in Settings.</span><Link to="/settings">Setup <ArrowRight size={14}/></Link></div>; if (!user) return <div className="inline-notice"><LockKeyhole size={17}/><span><b>Sign in to continue.</b> Your campus account keeps this space secure.</span><Link to="/auth">Sign in <ArrowRight size={14}/></Link></div>; return null; }
 
+function OfflineCard({ onRetry, isChecking }: { onRetry?: () => void; isChecking?: boolean }) {
+  const navigate = useNavigate();
+  return (
+    <div className="offline-screen glass-panel">
+      <svg className="cute-offline-mascot" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="80" cy="80" r="64" fill="#E8E2D5" />
+        <ellipse cx="80" cy="85" rx="42" ry="46" fill="#899F8B" />
+        <ellipse cx="80" cy="88" rx="34" ry="36" fill="#F4F0E7" />
+        <path d="M64 82C67 85 71 85 74 82" stroke="#4D443A" stroke-width="3" stroke-linecap="round" />
+        <path d="M86 82C89 85 93 85 96 82" stroke="#4D443A" stroke-width="3" stroke-linecap="round" />
+        <polygon points="80,87 76,92 84,92" fill="#E2A35C" />
+        <circle cx="62" cy="88" r="4" fill="#F4B0A1" opacity="0.8" />
+        <circle cx="98" cy="88" r="4" fill="#F4B0A1" opacity="0.8" />
+        <polygon points="80,45 106,55 80,63 54,55" fill="#4D443A" />
+        <rect x="70" y="58" width="20" height="9" rx="3" fill="#4D443A" />
+        <path d="M106 55V70" stroke="#E2A35C" stroke-width="2" stroke-linecap="round" />
+        <circle cx="106" cy="71" r="2.5" fill="#E2A35C" />
+        <path d="M116 38L124 38L116 46L124 46" stroke="#899F8B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+        <path d="M125 24L131 24L125 30L131 30" stroke="#899F8B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+        <circle cx="42" cy="48" r="14" fill="#FFFFFF" stroke="#78674C20" stroke-width="1.5" />
+        <path d="M35 44C39 40 45 40 49 44" stroke="#A89F91" stroke-width="2" stroke-linecap="round" />
+        <path d="M38 48C40 46 44 46 46 48" stroke="#A89F91" stroke-width="2" stroke-linecap="round" />
+        <line x1="34" y1="56" x2="50" y2="40" stroke="#D36B5B" stroke-width="2.5" stroke-linecap="round" />
+      </svg>
+      <h2>You're in Offline Study Mode</h2>
+      <p>No internet connection right now. Your downloaded notes and cached campus materials are still available to read offline!</p>
+      <div className="offline-screen-actions">
+        <button className="button button-primary" onClick={onRetry || (() => window.location.reload())} disabled={isChecking}>
+          <RefreshCw className={isChecking ? "spin" : ""} size={15} />
+          <span>{isChecking ? "Checking connection…" : "Retry Connection"}</span>
+        </button>
+        <button className="button button-secondary" onClick={() => navigate('/library')}>
+          <BookOpen size={15} />
+          <span>Go to Saved & Offline Notes</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Welcome({user}:{user:Profile|null}) { const navigate=useNavigate(); return <div className="welcome-page">
   <section className="welcome-hero">
     <div className="welcome-copy"><div className="eyebrow"><span className="eyebrow-dot"/> A calmer campus, together</div><h1>Your academic<br/><em>life, in flow.</em></h1><p className="hero-description">One thoughtful space for class notes, campus conversations and the people who make learning better.</p>
@@ -285,16 +376,50 @@ function ResourceRow({resources,loading}:{resources:any[];loading:boolean}) { if
 
 function LibraryPage({user}:{user:Profile|null}) {
   const [q,setQ]=useState('');const safeQuery=q.trim().replace(/[^\p{L}\p{N}\s_-]/gu,''); const [category,setCategory]=useState(''); const [sort,setSort]=useState('newest'); const [filterOpen,setFilterOpen]=useState(false);const [branchFilter,setBranchFilter]=useState('');const [semesterFilter,setSemesterFilter]=useState('');const [subjectFilter,setSubjectFilter]=useState('');
+  const cachedResources = useMemo(() => {
+    try {
+      const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('classflow_offline_cache') : null;
+      return stored ? JSON.parse(stored) as Resource[] : [];
+    } catch {
+      return [];
+    }
+  }, []);
+
   const filterBranches=useQuery({queryKey:['branches'],enabled:!!supabase&&!!user,queryFn:async()=>{const {data,error}=await requireBackend().from('branches').select('id,name').eq('is_active',true).order('name');if(error)throw error;return data??[];}});
   const filterSemesters=useQuery({queryKey:['semesters'],enabled:!!supabase&&!!user,queryFn:async()=>{const {data,error}=await requireBackend().from('semesters').select('id,name,number').eq('is_active',true).order('number');if(error)throw error;return data??[];}});
   const filterSubjects=useQuery({queryKey:['library-subjects',branchFilter,semesterFilter],enabled:!!supabase&&!!user,queryFn:async()=>{let q=requireBackend().from('subjects').select('id,name,branch_id,semester_id').eq('is_active',true).order('name');if(branchFilter)q=q.eq('branch_id',branchFilter);if(semesterFilter)q=q.eq('semester_id',semesterFilter);const {data,error}=await q;if(error)throw error;return data??[];}});
   const query=useQuery({queryKey:['resources',q,category,sort,branchFilter,semesterFilter,subjectFilter],enabled:!!supabase&&!!user,queryFn:async()=>{let request=requireBackend().from('resources').select('id,title,description,category,assignment_type,branch_id,semester_id,subject_id,unit_module,tags,page_count,created_at,updated_at,profiles:profiles!resources_uploaded_by_fkey(full_name,classflow_id),subject:subjects!resources_subject_id_fkey(name),branch:branches!resources_branch_id_fkey(name),semester:semesters!resources_semester_id_fkey(name),resource_files(id,original_name,mime_type,size_bytes,storage_path)').eq('is_published',true).is('deleted_at',null).is('resource_files.deleted_at',null);if(safeQuery) request=request.or(`title.ilike.%${safeQuery}%,description.ilike.%${safeQuery}%,unit_module.ilike.%${safeQuery}%`);if(category)request=request.eq('category',category);if(branchFilter)request=request.or(`branch_id.eq.${branchFilter},branch_id.is.null`);if(semesterFilter)request=request.or(`semester_id.eq.${semesterFilter},semester_id.is.null`);if(subjectFilter)request=request.or(`subject_id.eq.${subjectFilter},subject_id.is.null`);if(sort==='oldest')request=request.order('created_at',{ascending:true});else if(sort==='title')request=request.order('title',{ascending:true});else request=request.order('updated_at',{ascending:false});request=request.limit(60);const {data,error}=await request;if(error)throw error;const results=(data??[]) as unknown as Resource[];if(sort==='downloads'){const {data:counts,error:countError}=await requireBackend().rpc('resource_download_counts');if(countError)throw countError;const ranking=new Map<string,number>((counts??[]).map((row:any)=>[row.resource_id,Number(row.downloads)] as [string,number]));return results.sort((a,b)=>(ranking.get(b.id)||0)-(ranking.get(a.id)||0));}return results;}});
+
+  useEffect(() => {
+    if (query.data && query.data.length > 0 && typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem('classflow_offline_cache', JSON.stringify(query.data.slice(0, 40)));
+      } catch {}
+    }
+  }, [query.data]);
+
+  const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+  const displayResources = (query.data && query.data.length > 0) ? query.data : ((isOffline || query.isError) ? cachedResources : []);
+  const isUsingCache = !query.data?.length && Boolean(displayResources.length);
+
   return <><PageHeading eyebrow="SHARED KNOWLEDGE" title="Resource library" description="Useful material, thoughtfully shared by your campus." action={<Link to="/upload" className="button button-primary compact"><Plus size={16}/> Share resource</Link>}/>
     <div className="library-search-row"><div className="library-search"><Search size={17}/><input aria-label="Search resources" placeholder="Search notes, subjects, topics..." value={q} onChange={e=>setQ(e.target.value)}/>{q&&<button className="clear-search" onClick={()=>setQ('')}><X size={15}/></button>}</div><button className={`filter-button ${filterOpen?'pressed':''}`} onClick={()=>setFilterOpen(!filterOpen)}><Filter size={16}/> Filters <ChevronDown size={14}/></button><select className="sort-select" value={sort} onChange={e=>setSort(e.target.value)} aria-label="Sort resources"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="downloads">Most downloaded</option><option value="title">Alphabetical</option></select></div>
     {filterOpen&&<div className="filter-panel glass-panel"><span className="filter-label">CATEGORY</span><button className={`filter-chip ${category===''?'active':''}`} onClick={()=>setCategory('')}>All resources</button>{categories.map(c=><button key={c} className={`filter-chip ${category===c?'active':''}`} onClick={()=>setCategory(category===c?'':c)}>{c}</button>)}<span className="filter-label filter-break">ACADEMIC</span><select className="filter-select" value={branchFilter} onChange={e=>{setBranchFilter(e.target.value);setSubjectFilter('');}}><option value="">All branches</option>{filterBranches.data?.map((b:any)=><option key={b.id} value={b.id}>{b.name}</option>)}</select><select className="filter-select" value={semesterFilter} onChange={e=>{setSemesterFilter(e.target.value);setSubjectFilter('');}}><option value="">All semesters</option>{filterSemesters.data?.map((s:any)=><option key={s.id} value={s.id}>{s.name}</option>)}</select><select className="filter-select" value={subjectFilter} onChange={e=>setSubjectFilter(e.target.value)}><option value="">All subjects</option>{filterSubjects.data?.map((s:any)=><option key={s.id} value={s.id}>{s.name}</option>)}</select></div>}
-    <div className="library-subhead"><span>{query.data?.length??0} {query.data?.length===1?'resource':'resources'}</span><span>Shared knowledge, kept close</span></div>
-    {query.isError&&<div className="inline-error"><AlertCircle size={16}/>Couldn’t load resources. Please try again in a moment.<button onClick={()=>void query.refetch()}>Retry</button></div>}
-    {query.isLoading?<div className="resource-grid">{[1,2,3,4].map(i=><div className="skeleton-card library-skeleton" key={i}/>)}</div>:query.data?.length?<div className="resource-grid">{query.data.map(r=><ResourceCard resource={r} key={r.id} user={user}/>)}</div>:<DataState title={backendConfigured&&user?'No matching class material found.':'Your campus library is ready to grow'} text={backendConfigured&&user?'Try another search or category, or share a helpful resource with your classmates.':'After connecting your campus, find notes, assignments, practicals and more in one place.'} icon={<BookOpen size={22}/>} action={<Link to={backendConfigured&&user?'/upload':'/settings'} className="button button-secondary compact">{backendConfigured&&user?'Share a resource':'Connect your campus'} <ArrowRight size={14}/></Link>}/>}
+    <div className="library-subhead"><span>{displayResources.length} {displayResources.length===1?'resource':'resources'} {isUsingCache&&<span className="offline-badge">Offline Cached</span>}</span><span>Shared knowledge, kept close</span></div>
+    {query.isError && !displayResources.length ? (
+      <OfflineCard onRetry={()=>void query.refetch()} />
+    ) : (
+      <>
+        {isUsingCache && <div className="inline-notice"><AlertCircle size={15}/><span>You are offline. Showing previously cached notes. Connect to WiFi or mobile data to fetch new uploads.</span><button className="text-button" onClick={()=>void query.refetch()}>Retry <RefreshCw size={12}/></button></div>}
+        {query.isLoading ? (
+          <div className="resource-grid">{[1,2,3,4].map(i=><div className="skeleton-card library-skeleton" key={i}/>)}</div>
+        ) : displayResources.length ? (
+          <div className="resource-grid">{displayResources.map(r=><ResourceCard resource={r} key={r.id} user={user}/>)}</div>
+        ) : (
+          <DataState title={backendConfigured&&user?'No matching class material found.':'Your campus library is ready to grow'} text={backendConfigured&&user?'Try another search or category, or share a helpful resource with your classmates.':'After connecting your campus, find notes, assignments, practicals and more in one place.'} icon={<BookOpen size={22}/>} action={<Link to={backendConfigured&&user?'/upload':'/settings'} className="button button-secondary compact">{backendConfigured&&user?'Share a resource':'Connect your campus'} <ArrowRight size={14}/></Link>}/>
+        )}
+      </>
+    )}
   </>;
 }
 function ResourceCard({resource:r,user}:{resource:Resource;user:Profile|null}) {
