@@ -23,6 +23,7 @@ type Resource = {
 };
 type Profile = { id: string; full_name: string; username: string; classflow_id: string; role?: string; permissions?: string[]; avatar_url?: string | null; bio?: string | null };
 const categories = ['Notes', 'Assignment', 'Practical', 'Lab Manual', 'PYQ', 'Notice', 'Syllabus', 'Question Bank', 'Other'];
+const APP_VERSION = '1.2.1';
 const relativeTime = (d: string) => { const delta = Date.now() - new Date(d).getTime(); if (delta < 60_000) return 'Just now'; if (delta < 3_600_000) return `${Math.floor(delta / 60_000)}m ago`; if (delta < 86_400_000) return `${Math.floor(delta / 3_600_000)}h ago`; return new Date(d).toLocaleDateString(); };
 const prettySize = (n: number) => n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
 const fileKey = (f:File) => `${f.name}:${f.size}:${f.lastModified}`;
@@ -38,6 +39,10 @@ function App() {
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [checkingConnection, setCheckingConnection] = useState(false);
+  const [hasUpdate, setHasUpdate] = useState(false);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<{ version?: string; title?: string; highlights?: string[] } | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
   const location = useLocation();
   const queryClient = useQueryClient();
 
@@ -56,6 +61,81 @@ function App() {
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  const checkForAppUpdate = async (manual = false) => {
+    try {
+      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg) {
+          await reg.update().catch(() => {});
+          if (reg.waiting) {
+            setHasUpdate(true);
+            setShowUpdateModal(true);
+            return;
+          }
+        }
+      }
+
+      const res = await fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.version && data.version !== APP_VERSION) {
+          setUpdateInfo(data);
+          setHasUpdate(true);
+          setShowUpdateModal(true);
+          return;
+        }
+      }
+
+      if (manual) {
+        toast(`You are running the latest ClassFlow (${APP_VERSION}).`);
+      }
+    } catch {
+      if (manual) {
+        toast('Could not verify update. Please check your internet connection.');
+      }
+    }
+  };
+
+  const handleApplyUpdate = async () => {
+    setIsUpdating(true);
+    try {
+      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const reg of regs) {
+          if (reg.waiting) {
+            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          }
+        }
+      }
+      if (typeof window !== 'undefined' && 'caches' in window) {
+        const names = await caches.keys();
+        await Promise.all(names.map(name => caches.delete(name)));
+      }
+      toast('Updating ClassFlow to the latest version…');
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+    } catch {
+      window.location.reload();
+    }
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void checkForAppUpdate();
+    }, 1500);
+    const interval = setInterval(() => {
+      void checkForAppUpdate();
+    }, 45000);
+    const onFocus = () => void checkForAppUpdate();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
     };
   }, []);
 
@@ -229,7 +309,7 @@ function App() {
         <Route path="/messages" element={<Messages user={user}/>}/>
         <Route path="/profile" element={<ProfilePage user={user} onUpdate={loadProfile}/>}/>
         <Route path="/admin" element={<AdminPage user={user}/>}/>
-        <Route path="/settings" element={<SettingsPage user={user}/>}/>
+        <Route path="/settings" element={<SettingsPage user={user} onCheckUpdate={() => checkForAppUpdate(true)} onShowUpdateModal={() => setShowUpdateModal(true)}/>}/>
         <Route path="/offline" element={<OfflineCard onRetry={handleRetryConnection} isChecking={checkingConnection}/>}/>
         <Route path="*" element={<Welcome user={user}/>}/>
       </Routes></motion.div>
@@ -241,6 +321,55 @@ function App() {
         <MobileLink to="/profile" icon={<UserRound size={19}/>} label="You"/>
       </nav>
       <ToastViewport/>
+      {hasUpdate && !showUpdateModal && (
+        <div className="update-floating-bar" onClick={() => setShowUpdateModal(true)}>
+          <div className="update-floating-left">
+            <span className="update-pulse-ring" />
+            <span><b>Update Ready:</b> ClassFlow {updateInfo?.version || APP_VERSION} is available</span>
+          </div>
+          <button className="button button-primary compact tiny" onClick={(e) => { e.stopPropagation(); void handleApplyUpdate(); }} disabled={isUpdating} style={{minHeight: '28px', fontSize: '11px', padding: '0 12px', background: '#52c41a', border: 'none', color: '#fff'}}>
+            <RefreshCw className={isUpdating ? "spin" : ""} size={12}/>
+            <span>{isUpdating ? 'Updating…' : 'Update Now'}</span>
+          </button>
+        </div>
+      )}
+      {showUpdateModal && (
+        <div className="profile-post-backdrop" onClick={() => setShowUpdateModal(false)}>
+          <div className="install-dialog update-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="install-dialog-head">
+              <div className="update-dialog-icon">
+                <Sparkles size={22}/>
+              </div>
+              <div>
+                <h3>App Update Available</h3>
+                <p>ClassFlow {updateInfo?.version || APP_VERSION} is ready</p>
+              </div>
+              <button className="icon-button tiny" onClick={() => setShowUpdateModal(false)}><X size={15}/></button>
+            </div>
+            <div className="update-dialog-body">
+              <p className="update-desc">{updateInfo?.title || 'New offline study mode, mascot screen, and performance improvements are ready for your device.'}</p>
+              <ul className="update-highlights">
+                {(updateInfo?.highlights || [
+                  'Offline Study Mode with cute mascot illustration',
+                  'Cached campus notes available without internet',
+                  'Instant reload & faster PWA performance'
+                ]).map((hl: string, idx: number) => (
+                  <li key={idx}><Check size={14}/><span>{hl}</span></li>
+                ))}
+              </ul>
+            </div>
+            <div className="update-dialog-actions">
+              <button className="button button-primary" onClick={handleApplyUpdate} disabled={isUpdating}>
+                <RefreshCw className={isUpdating ? "spin" : ""} size={15}/>
+                <span>{isUpdating ? "Applying Update…" : "Update Now"}</span>
+              </button>
+              <button className="button button-secondary" onClick={() => setShowUpdateModal(false)}>
+                Later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {showInstallModal && (
         <div className="profile-post-backdrop" onClick={() => setShowInstallModal(false)}>
           <div className="install-dialog" onClick={(e) => e.stopPropagation()}>
@@ -660,18 +789,24 @@ function AdminPage({user}:{user:Profile|null}) {
   </>;
 }
 
-function SettingsPage({user}:{user:Profile|null}) { return <><PageHeading eyebrow="PLATFORM PREFERENCES" title="Settings & integrations" description="Connect the services that bring your ClassFlow campus to life."/><div className="settings-intro glass-panel"><span className="setting-lock"><LockKeyhole size={18}/></span><div><h3>Credentials stay server-side</h3><p>Supabase's public client key is designed for browser use under RLS. Service-role keys, AI credentials and LiveKit secrets must only be saved through a protected server-side configuration endpoint.</p></div><span className="security-badge"><ShieldCheck size={14}/> Secrets server-side</span></div><div className="integration-card glass-panel"><div className="integration-logo supabase-logo">S</div><div className="integration-details"><span className="integration-type">DATABASE & AUTH</span><h3>Supabase</h3><p>Postgres, accounts, private file storage and realtime updates.</p></div><span className={`status-pill ${backendConfigured?'connected':'not-connected'}`}><i/>{backendConfigured?'Client configured':'Not configured'}</span><div className="integration-footer"><div className="integration-footnote">{backendConfigured?'Project URL and publishable key detected in the browser build.':'The project URL and public/publishable key initialize the browser client.'}</div><button className="button button-secondary compact" onClick={()=>toast(backendConfigured?'Supabase client is configured. Verify server access in your project dashboard.':'See the .env.example and README for the secure initial setup steps.')}><CircleHelp size={14}/> Setup instructions</button></div></div>
+function SettingsPage({user, onCheckUpdate, onShowUpdateModal}:{user:Profile|null; onCheckUpdate?: () => void; onShowUpdateModal?: () => void}) { return <><PageHeading eyebrow="PLATFORM PREFERENCES" title="Settings & integrations" description="Connect the services that bring your ClassFlow campus to life."/><div className="settings-intro glass-panel"><span className="setting-lock"><LockKeyhole size={18}/></span><div><h3>Credentials stay server-side</h3><p>Supabase's public client key is designed for browser use under RLS. Service-role keys, AI credentials and LiveKit secrets must only be saved through a protected server-side configuration endpoint.</p></div><span className="security-badge"><ShieldCheck size={14}/> Secrets server-side</span></div><div className="integration-card glass-panel"><div className="integration-logo supabase-logo">S</div><div className="integration-details"><span className="integration-type">DATABASE & AUTH</span><h3>Supabase</h3><p>Postgres, accounts, private file storage and realtime updates.</p></div><span className={`status-pill ${backendConfigured?'connected':'not-connected'}`}><i/>{backendConfigured?'Client configured':'Not configured'}</span><div className="integration-footer"><div className="integration-footnote">{backendConfigured?'Project URL and publishable key detected in the browser build.':'The project URL and public/publishable key initialize the browser client.'}</div><button className="button button-secondary compact" onClick={()=>toast(backendConfigured?'Supabase client is configured. Verify server access in your project dashboard.':'See the .env.example and README for the secure initial setup steps.')}><CircleHelp size={14}/> Setup instructions</button></div></div>
   <div className="integration-card glass-panel" style={{marginTop: '16px'}}>
     <div className="integration-logo" style={{background: '#718c75', color: '#fff', fontSize: '13px', fontWeight: 700}}>PWA</div>
     <div className="integration-details">
       <span className="integration-type">PWA & OFFLINE ENGINE</span>
-      <h3>ClassFlow Offline Engine</h3>
-      <p>Service Worker v3 active. Notes and campus resources are cached for offline study.</p>
+      <h3>ClassFlow Offline & Updates</h3>
+      <p>Service Worker v4 active. Instant in-app update popups and offline cached notes enabled.</p>
     </div>
     <span className="status-pill connected"><i/>Ready</span>
     <div className="integration-footer">
-      <div className="integration-footnote">Version 1.2.0 (Offline Mode & Mascot active)</div>
+      <div className="integration-footnote">Version {APP_VERSION} (Direct In-App Updates Active)</div>
       <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
+        <button className="button button-primary compact" onClick={onCheckUpdate}>
+          <Sparkles size={14}/> Check for Updates
+        </button>
+        <button className="button button-secondary compact" onClick={onShowUpdateModal}>
+          <Sparkles size={14}/> Show Update Popup
+        </button>
         <Link to="/offline" className="button button-secondary compact">
           <Eye size={14}/> Preview Offline Screen
         </Link>
@@ -687,7 +822,7 @@ function SettingsPage({user}:{user:Profile|null}) { return <><PageHeading eyebro
           toast('Caches cleared! Reloading fresh version…');
           setTimeout(() => window.location.reload(), 600);
         }}>
-          <RefreshCw size={14}/> Force Update & Reload
+          <RefreshCw size={14}/> Force Reload
         </button>
       </div>
     </div>

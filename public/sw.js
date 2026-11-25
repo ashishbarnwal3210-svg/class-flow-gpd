@@ -1,4 +1,4 @@
-const CACHE_NAME = 'classflow-cache-v3';
+const CACHE_NAME = 'classflow-cache-v4';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -47,6 +47,14 @@ self.addEventListener('fetch', (event) => {
 
   // Skip external or non-http requests (e.g. Supabase API)
   if (url.origin !== self.location.origin) return;
+
+  // Always fetch fresh version metadata for update popups
+  if (url.pathname === '/version.json') {
+    event.respondWith(
+      fetch(event.request, { cache: 'no-store' }).catch(() => caches.match(event.request))
+    );
+    return;
+  }
 
   // SPA navigation requests (e.g. HTML pages, route transitions)
   if (event.request.mode === 'navigate') {
