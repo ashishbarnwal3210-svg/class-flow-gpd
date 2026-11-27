@@ -14,7 +14,6 @@ import { backendConfigured, requireBackend, supabase } from './lib/supabase';
 import { resourceMetadataSchema, resourceMimeType, validateResourceFile } from './lib/resource-validation';
 import { useUIStore } from './lib/ui-store';
 import { uploadPrivateResourceFile } from './lib/upload';
-import { getOfflineDownloads, deleteOfflineDownload, isResourceDownloaded, downloadResourceLocally, type OfflineDownload } from './lib/offline-storage';
 
 type Resource = {
   id: string; title: string; description: string | null; category: string; assignment_type: string | null;
@@ -24,154 +23,31 @@ type Resource = {
 };
 type Profile = { id: string; full_name: string; username: string; classflow_id: string; role?: string; permissions?: string[]; avatar_url?: string | null; bio?: string | null };
 const categories = ['Notes', 'Assignment', 'Practical', 'Lab Manual', 'PYQ', 'Notice', 'Syllabus', 'Question Bank', 'Other'];
-const APP_VERSION = '1.2.5';
 const relativeTime = (d: string) => { const delta = Date.now() - new Date(d).getTime(); if (delta < 60_000) return 'Just now'; if (delta < 3_600_000) return `${Math.floor(delta / 60_000)}m ago`; if (delta < 86_400_000) return `${Math.floor(delta / 3_600_000)}h ago`; return new Date(d).toLocaleDateString(); };
 const prettySize = (n: number) => n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
 const fileKey = (f:File) => `${f.name}:${f.size}:${f.lastModified}`;
+
 const isTestEnv = import.meta.env.MODE === 'test';
 
 function App() {
   const [user, setUser] = useState<Profile | null>(null);
   const [booting, setBooting] = useState(!isTestEnv && backendConfigured);
+
+  useEffect(() => {
+    if (isTestEnv || !backendConfigured) return;
+    const timer = setTimeout(() => {
+      setBooting(false);
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, []);
   const [menuOpen, setMenuOpen] = useState(false);
   const [notificationsOpen,setNotificationsOpen]=useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isStandalone, setIsStandalone] = useState(false);
   const [showInstallBanner, setShowInstallBanner] = useState(true);
   const [showInstallModal, setShowInstallModal] = useState(false);
-  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
-  const [checkingConnection, setCheckingConnection] = useState(false);
-  const [hasUpdate, setHasUpdate] = useState(false);
-  const [showUpdateModal, setShowUpdateModal] = useState(false);
-  const [updateInfo, setUpdateInfo] = useState<{ version?: string; title?: string; highlights?: string[] } | null>(null);
-  const [isUpdating, setIsUpdating] = useState(false);
   const location = useLocation();
   const queryClient = useQueryClient();
-
-  useEffect(() => {
-    if (isTestEnv || !backendConfigured) return;
-    // Fast 1.2s app opening animation (1 to 2 sec max)
-    const timer = setTimeout(() => {
-      setBooting(false);
-    }, 1200);
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const handleOnline = () => {
-      setIsOnline(true);
-      toast('Back online! Reconnected to campus.');
-    };
-    const handleOffline = () => {
-      setIsOnline(false);
-      toast('You are currently offline. Viewing cached notes.');
-    };
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  const checkForAppUpdate = async (manual = false) => {
-    try {
-      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-        const reg = await navigator.serviceWorker.getRegistration();
-        if (reg) {
-          await reg.update().catch(() => {});
-          if (reg.waiting) {
-            setHasUpdate(true);
-            setShowUpdateModal(true);
-            return;
-          }
-        }
-      }
-
-      const res = await fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        const applied = typeof localStorage !== 'undefined' ? localStorage.getItem('classflow_applied_version') : null;
-        if (data.version && data.version !== APP_VERSION && data.version !== applied) {
-          setUpdateInfo(data);
-          setHasUpdate(true);
-          setShowUpdateModal(true);
-          return;
-        } else {
-          setHasUpdate(false);
-        }
-      }
-
-      if (manual) {
-        toast(`You are running the latest ClassFlow (${APP_VERSION}).`);
-      }
-    } catch {
-      if (manual) {
-        toast('Could not verify update. Please check your internet connection.');
-      }
-    }
-  };
-
-  const handleApplyUpdate = async () => {
-    setIsUpdating(true);
-    try {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('classflow_applied_version', updateInfo?.version || APP_VERSION);
-      }
-      setHasUpdate(false);
-      setShowUpdateModal(false);
-
-      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-        const regs = await navigator.serviceWorker.getRegistrations();
-        for (const reg of regs) {
-          if (reg.waiting) {
-            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-          }
-        }
-      }
-      toast('Updated! Loading the newest version…');
-      setTimeout(() => {
-        window.location.reload();
-      }, 400);
-    } catch {
-      window.location.reload();
-    }
-  };
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      void checkForAppUpdate();
-    }, 1500);
-    const interval = setInterval(() => {
-      void checkForAppUpdate();
-    }, 45000);
-    const onFocus = () => void checkForAppUpdate();
-    window.addEventListener('focus', onFocus);
-    return () => {
-      clearTimeout(timer);
-      clearInterval(interval);
-      window.removeEventListener('focus', onFocus);
-    };
-  }, []);
-
-  const handleRetryConnection = async () => {
-    setCheckingConnection(true);
-    try {
-      const res = await fetch('/manifest.json?t=' + Date.now(), { cache: 'no-store' });
-      if (res.ok) {
-        setIsOnline(true);
-        toast('Connected! You are back online.');
-        window.location.reload();
-        return;
-      }
-    } catch {
-      // still offline
-    } finally {
-      setCheckingConnection(false);
-    }
-    toast('Still offline. Please check your WiFi or mobile data.');
-  };
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -232,7 +108,7 @@ function App() {
     const { data: permissionRows } = await supabase.from('user_permissions').select('permission').eq('user_id',id);
     if (data) setUser({ ...data, role: roleData?.role ?? 'student', permissions:(permissionRows??[]).map((row:any)=>row.permission) });
   }
-  const pageTitle = useMemo(() => ({ '/dashboard':'Dashboard','/library':'Resource library','/downloads':'In-App Downloads','/copilot':'ClassFlow Copilot','/upload':'Share a resource','/communities':'Campus network','/messages':'Messages','/profile':'Your profile','/admin':'Admin studio','/settings':'Settings','/offline':'Offline study' } as Record<string,string>)[location.pathname] ?? 'Welcome to ClassFlow', [location.pathname]);
+  const pageTitle = useMemo(() => ({ '/dashboard':'Dashboard','/library':'Resource library','/copilot':'ClassFlow Copilot','/upload':'Share a resource','/communities':'Campus network','/messages':'Messages','/profile':'Your profile','/admin':'Admin studio','/settings':'Settings' } as Record<string,string>)[location.pathname] ?? 'Welcome to ClassFlow', [location.pathname]);
   const signOut = async () => { if (supabase) await supabase.auth.signOut(); setMenuOpen(false); };
   if (booting) return <div className="boot-screen"><img className="brand-mark" src="/classflow-mark.webp" alt="ClassFlow"/><span className="boot-word">ClassFlow</span><div className="loader-line" /></div>;
   return <MotionConfig reducedMotion="user"><div className="app-shell">
@@ -250,7 +126,6 @@ function App() {
       <div className="sidebar-label">YOUR SPACE</div>
       <nav className="side-nav">
         <SideLink to="/upload" icon={<Plus size={18}/>} label="Share a resource"/>
-        <SideLink to="/downloads" icon={<ArrowDownToLine size={18}/>} label="In-App Downloads"/>
         <SideLink to="/profile" icon={<UserRound size={18}/>} label="Profile"/>
         {user?.role === 'admin' || user?.role === 'subadmin' ? <SideLink to="/admin" icon={<ShieldCheck size={18}/>} label="Admin studio"/> : null}
         <SideLink to="/settings" icon={<Settings size={18}/>} label="Settings"/>
@@ -269,15 +144,6 @@ function App() {
         <div className="mobile-brand"><Link to="/" className="brand"><img className="brand-glyph" src="/classflow-mark.webp" alt=""/><span>ClassFlow</span></Link></div>
         <div className="breadcrumbs"><span>ClassFlow</span><span className="crumb-slash">/</span><b>{pageTitle}</b></div>
         <div className="top-actions">
-          {hasUpdate && (
-            <button className="update-header-btn" onClick={() => setShowUpdateModal(true)} title="1-Tap App Update">
-              <Sparkles size={13}/>
-              <span>Update Ready</span>
-            </button>
-          )}
-          <NavLink to="/downloads" className="icon-button" aria-label="In-App Downloads" title="In-App Downloads">
-            <ArrowDownToLine size={17}/>
-          </NavLink>
           {!isStandalone && (
             <button className="install-header-btn" onClick={handleInstallApp} title="Install ClassFlow App on your phone">
               <ArrowDownToLine size={15}/>
@@ -291,54 +157,6 @@ function App() {
           </div>
         </div>
       </header>
-      {!isOnline && location.pathname === '/downloads' && (
-        <div className="offline-top-strip">
-          <div className="offline-top-strip-left">
-            <span className="offline-pulse-dot" />
-            <span><b>Offline Study:</b> Reading notes from device storage. Zero data needed.</span>
-          </div>
-          <button className="button button-secondary compact tiny" onClick={handleRetryConnection} disabled={checkingConnection} style={{fontSize: '10px', minHeight: '26px', padding: '0 9px', gap: '4px'}}>
-            <RefreshCw className={checkingConnection ? "spin" : ""} size={12}/>
-            <span>{checkingConnection ? 'Checking…' : 'Retry'}</span>
-          </button>
-        </div>
-      )}
-      {!isOnline && location.pathname !== '/downloads' && (
-        <div className="offline-full-overlay glass-panel">
-          <svg className="cute-offline-mascot" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="80" cy="80" r="64" fill="#E8E2D5" />
-            <ellipse cx="80" cy="85" rx="42" ry="46" fill="#899F8B" />
-            <ellipse cx="80" cy="88" rx="34" ry="36" fill="#F4F0E7" />
-            <path d="M64 82C67 85 71 85 74 82" stroke="#4D443A" stroke-width="3" stroke-linecap="round" />
-            <path d="M86 82C89 85 93 85 96 82" stroke="#4D443A" stroke-width="3" stroke-linecap="round" />
-            <polygon points="80,87 76,92 84,92" fill="#E2A35C" />
-            <circle cx="62" cy="88" r="4" fill="#F4B0A1" opacity="0.8" />
-            <circle cx="98" cy="88" r="4" fill="#F4B0A1" opacity="0.8" />
-            <polygon points="80,45 106,55 80,63 54,55" fill="#4D443A" />
-            <rect x="70" y="58" width="20" height="9" rx="3" fill="#4D443A" />
-            <path d="M106 55V70" stroke="#E2A35C" stroke-width="2" stroke-linecap="round" />
-            <circle cx="106" cy="71" r="2.5" fill="#E2A35C" />
-            <path d="M116 38L124 38L116 46L124 46" stroke="#899F8B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="M125 24L131 24L125 30L131 30" stroke="#899F8B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-            <circle cx="42" cy="48" r="14" fill="#FFFFFF" stroke="#78674C20" stroke-width="1.5" />
-            <path d="M35 44C39 40 45 40 49 44" stroke="#A89F91" stroke-width="2" stroke-linecap="round" />
-            <path d="M38 48C40 46 44 46 46 48" stroke="#A89F91" stroke-width="2" stroke-linecap="round" />
-            <line x1="34" y1="56" x2="50" y2="40" stroke="#D36B5B" stroke-width="2.5" stroke-linecap="round" />
-          </svg>
-          <h2>You're Currently Offline</h2>
-          <p>No internet connection right now. Your downloaded campus notes are saved directly inside ClassFlow — read and study anytime without internet!</p>
-          <div className="offline-overlay-actions">
-            <Link to="/downloads" className="button button-primary">
-              <ArrowDownToLine size={16} />
-              <span>Open In-App Downloads (Read Offline)</span>
-            </Link>
-            <button className="button button-secondary" onClick={handleRetryConnection} disabled={checkingConnection}>
-              <RefreshCw className={checkingConnection ? "spin" : ""} size={15} />
-              <span>{checkingConnection ? "Checking connection…" : "Retry Connection"}</span>
-            </button>
-          </div>
-        </div>
-      )}
       {!isStandalone && showInstallBanner && (
         <div className="install-bar">
           <div className="install-bar-content">
@@ -364,15 +182,13 @@ function App() {
         <Route path="/auth" element={<AuthPage onSuccess={async () => { const { data } = await supabase?.auth.getUser() ?? { data: { user: null } }; if (data.user) await loadProfile(data.user.id); }}/>} />
         <Route path="/dashboard" element={<Dashboard user={user}/>}/>
         <Route path="/library" element={<LibraryPage user={user}/>}/>
-        <Route path="/downloads" element={<DownloadsPage />}/>
         <Route path="/copilot" element={<CopilotPage user={user}/>}/>
         <Route path="/upload" element={<UploadPage user={user}/>}/>
         <Route path="/communities" element={<Communities user={user}/>}/>
         <Route path="/messages" element={<Messages user={user}/>}/>
         <Route path="/profile" element={<ProfilePage user={user} onUpdate={loadProfile}/>}/>
         <Route path="/admin" element={<AdminPage user={user}/>}/>
-        <Route path="/settings" element={<SettingsPage user={user} onCheckUpdate={() => checkForAppUpdate(true)} onShowUpdateModal={() => setShowUpdateModal(true)}/>}/>
-        <Route path="/offline" element={<OfflineCard onRetry={handleRetryConnection} isChecking={checkingConnection}/>}/>
+        <Route path="/settings" element={<SettingsPage user={user}/>}/>
         <Route path="*" element={<Welcome user={user}/>}/>
       </Routes></motion.div>
       <nav className="mobile-nav glass-panel" aria-label="Main navigation">
@@ -383,46 +199,6 @@ function App() {
         <MobileLink to="/profile" icon={<UserRound size={19}/>} label="You"/>
       </nav>
       <ToastViewport/>
-      {showUpdateModal && (
-        <div className="update-modal-backdrop" onClick={() => setShowUpdateModal(false)}>
-          <div className="update-dialog" onClick={(e) => e.stopPropagation()}>
-            <div className="update-dialog-head">
-              <div className="update-dialog-icon">
-                <Sparkles size={24}/>
-              </div>
-              <div style={{flex: 1}}>
-                <h3>ClassFlow Updated</h3>
-                <span className="update-version-tag">
-                  <span className="offline-pulse-dot" style={{width: '6px', height: '6px'}}/>
-                  <span>Version {updateInfo?.version || APP_VERSION}</span>
-                </span>
-              </div>
-              <button className="icon-button tiny" onClick={() => setShowUpdateModal(false)}><X size={16}/></button>
-            </div>
-            <div className="update-dialog-body">
-              <p className="update-desc">{updateInfo?.title || 'A fresh update is ready with offline downloads, guaranteed mascot offline screen, and faster performance.'}</p>
-              <ul className="update-highlights">
-                {(updateInfo?.highlights || [
-                  'In-app downloads: Read notes offline like Hotstar',
-                  'Cute mascot offline screen when internet drops',
-                  'Superfast instant page loading & zero ERR_FAILED'
-                ]).map((hl: string, idx: number) => (
-                  <li key={idx}><Check size={14}/><span>{hl}</span></li>
-                ))}
-              </ul>
-            </div>
-            <div className="update-dialog-actions">
-              <button className="button button-primary" onClick={handleApplyUpdate} disabled={isUpdating}>
-                <RefreshCw className={isUpdating ? "spin" : ""} size={15}/>
-                <span>{isUpdating ? "Updating…" : "Update Now (1-Tap)"}</span>
-              </button>
-              <button className="button button-secondary" onClick={() => setShowUpdateModal(false)}>
-                Remind Later
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {showInstallModal && (
         <div className="profile-post-backdrop" onClick={() => setShowInstallModal(false)}>
           <div className="install-dialog" onClick={(e) => e.stopPropagation()}>
@@ -475,264 +251,6 @@ function PageHeading({eyebrow,title,description,action}:{eyebrow?:string;title:s
 function DataState({title='Nothing here yet',text='Once your campus is connected, information will appear here.',icon=<FolderOpen size={22}/>,action}:{title?:string;text?:string;icon?:React.ReactNode;action?:React.ReactNode}) { return <div className="empty-state"><span className="empty-icon">{icon}</span><h3>{title}</h3><p>{text}</p>{action}</div>; }
 function BackendGate({user,feature}:{user:Profile|null;feature:string}) { if (!backendConfigured) return <div className="inline-notice"><AlertCircle size={17}/><span><b>Backend setup needed.</b> {feature} becomes available after the Supabase setup in Settings.</span><Link to="/settings">Setup <ArrowRight size={14}/></Link></div>; if (!user) return <div className="inline-notice"><LockKeyhole size={17}/><span><b>Sign in to continue.</b> Your campus account keeps this space secure.</span><Link to="/auth">Sign in <ArrowRight size={14}/></Link></div>; return null; }
 
-function OfflineCard({ onRetry, isChecking }: { onRetry?: () => void; isChecking?: boolean }) {
-  const navigate = useNavigate();
-  return (
-    <div className="offline-screen glass-panel">
-      <svg className="cute-offline-mascot" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="80" cy="80" r="64" fill="#E8E2D5" />
-        <ellipse cx="80" cy="85" rx="42" ry="46" fill="#899F8B" />
-        <ellipse cx="80" cy="88" rx="34" ry="36" fill="#F4F0E7" />
-        <path d="M64 82C67 85 71 85 74 82" stroke="#4D443A" stroke-width="3" stroke-linecap="round" />
-        <path d="M86 82C89 85 93 85 96 82" stroke="#4D443A" stroke-width="3" stroke-linecap="round" />
-        <polygon points="80,87 76,92 84,92" fill="#E2A35C" />
-        <circle cx="62" cy="88" r="4" fill="#F4B0A1" opacity="0.8" />
-        <circle cx="98" cy="88" r="4" fill="#F4B0A1" opacity="0.8" />
-        <polygon points="80,45 106,55 80,63 54,55" fill="#4D443A" />
-        <rect x="70" y="58" width="20" height="9" rx="3" fill="#4D443A" />
-        <path d="M106 55V70" stroke="#E2A35C" stroke-width="2" stroke-linecap="round" />
-        <circle cx="106" cy="71" r="2.5" fill="#E2A35C" />
-        <path d="M116 38L124 38L116 46L124 46" stroke="#899F8B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-        <path d="M125 24L131 24L125 30L131 30" stroke="#899F8B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-        <circle cx="42" cy="48" r="14" fill="#FFFFFF" stroke="#78674C20" stroke-width="1.5" />
-        <path d="M35 44C39 40 45 40 49 44" stroke="#A89F91" stroke-width="2" stroke-linecap="round" />
-        <path d="M38 48C40 46 44 46 46 48" stroke="#A89F91" stroke-width="2" stroke-linecap="round" />
-        <line x1="34" y1="56" x2="50" y2="40" stroke="#D36B5B" stroke-width="2.5" stroke-linecap="round" />
-      </svg>
-      <h2>You're in Offline Study Mode</h2>
-      <p>No internet connection right now. Your downloaded notes and cached campus materials are still available to read offline!</p>
-      <div className="offline-screen-actions">
-        <button className="button button-primary" onClick={() => navigate('/downloads')}>
-          <ArrowDownToLine size={15} />
-          <span>Open In-App Downloads (Read Offline)</span>
-        </button>
-        <button className="button button-secondary" onClick={onRetry || (() => window.location.reload())} disabled={isChecking}>
-          <RefreshCw className={isChecking ? "spin" : ""} size={15} />
-          <span>{isChecking ? "Checking connection…" : "Retry Connection"}</span>
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function DownloadsPage() {
-  const [downloads, setDownloads] = useState<OfflineDownload[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeItem, setActiveItem] = useState<OfflineDownload | null>(null);
-
-  const loadDownloads = async () => {
-    setLoading(true);
-    try {
-      const items = await getOfflineDownloads();
-      setDownloads(items);
-    } catch {
-      setDownloads([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    void loadDownloads();
-  }, []);
-
-  const handleDelete = async (id: string, name: string) => {
-    if (!window.confirm(`Delete "${name}" from In-App Downloads?`)) return;
-    await deleteOfflineDownload(id);
-    toast('Removed from In-App Downloads.');
-    void loadDownloads();
-  };
-
-  const totalBytes = useMemo(() => {
-    return downloads.reduce((sum, item) => sum + (item.fileSize || item.blob?.size || 0), 0);
-  }, [downloads]);
-
-  return (
-    <>
-      <PageHeading
-        eyebrow="OFFLINE STUDY STORAGE"
-        title="In-App Downloads"
-        description="Notes downloaded locally inside ClassFlow — read and study anytime without internet."
-        action={
-          <Link to="/library" className="button button-secondary compact">
-            <BookOpen size={16}/> Browse Library
-          </Link>
-        }
-      />
-
-      <div className="downloads-storage-bar glass-panel">
-        <span className="downloads-storage-pill">
-          <ArrowDownToLine size={15}/>
-          <span>{downloads.length} {downloads.length === 1 ? 'note' : 'notes'} saved offline</span>
-        </span>
-        <span>Storage used: <b>{prettySize(totalBytes)}</b></span>
-      </div>
-
-      {loading ? (
-        <div className="resource-grid">
-          {[1,2].map(i => <div className="skeleton-card library-skeleton" key={i}/>)}
-        </div>
-      ) : downloads.length ? (
-        <div className="downloads-grid">
-          {downloads.map(item => (
-            <div className="download-card glass-panel" key={item.id}>
-              <div>
-                <div className="download-card-head">
-                  <div className="download-file-icon">
-                    <FileText size={20}/>
-                  </div>
-                  <div className="download-card-meta">
-                    <h3>{item.title}</h3>
-                    <p>{item.subjectName || item.category || 'Class Material'} · {item.authorName || 'Campus upload'}</p>
-                  </div>
-                </div>
-                <div className="download-badge-row">
-                  <span className="in-app-downloaded-pill"><Check size={12}/> Offline Ready</span>
-                  <span className="download-badge-chip">{prettySize(item.fileSize || item.blob?.size || 0)}</span>
-                  <span>{relativeTime(new Date(item.downloadedAt).toISOString())}</span>
-                </div>
-              </div>
-              <div className="download-card-actions">
-                <button className="button button-primary compact" onClick={() => setActiveItem(item)}>
-                  <BookOpen size={13}/> Read Offline
-                </button>
-                <button
-                  className="icon-button tiny"
-                  title="Export to phone files"
-                  onClick={() => {
-                    const url = URL.createObjectURL(item.blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = item.fileName;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                    toast('Saved copy to phone file manager.');
-                  }}
-                >
-                  <ArrowDownToLine size={14}/>
-                </button>
-                <button
-                  className="icon-button tiny"
-                  title="Delete download"
-                  onClick={() => void handleDelete(item.id, item.title)}
-                >
-                  <Trash2 size={14}/>
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <DataState
-          title="No in-app downloads yet"
-          text="Download notes from the Resource Library to read them anytime offline — just like Hotstar or YouTube!"
-          icon={<ArrowDownToLine size={24}/>}
-          action={
-            <Link to="/library" className="button button-primary compact">
-              <BookOpen size={14}/> Go to Resource Library
-            </Link>
-          }
-        />
-      )}
-
-      {activeItem && (
-        <InAppOfflineViewer item={activeItem} onClose={() => setActiveItem(null)}/>
-      )}
-    </>
-  );
-}
-
-function InAppOfflineViewer({ item, onClose }: { item: OfflineDownload; onClose: () => void }) {
-  const [blobUrl, setBlobUrl] = useState<string>('');
-  const [isPdf, setIsPdf] = useState(false);
-  const [isImage, setIsImage] = useState(false);
-  const [textContent, setTextContent] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!item.blob) return;
-    const url = URL.createObjectURL(item.blob);
-    setBlobUrl(url);
-
-    const type = (item.mimeType || '').toLowerCase();
-    const name = (item.fileName || '').toLowerCase();
-    if (type.includes('pdf') || name.endsWith('.pdf')) {
-      setIsPdf(true);
-    } else if (type.startsWith('image/') || /\.(png|jpe?g|webp|gif)$/i.test(name)) {
-      setIsImage(true);
-    } else if (type.startsWith('text/') || /\.(txt|md|csv|json)$/i.test(name)) {
-      const reader = new FileReader();
-      reader.onload = () => setTextContent(String(reader.result || ''));
-      reader.readAsText(item.blob);
-    }
-
-    return () => {
-      URL.revokeObjectURL(url);
-    };
-  }, [item]);
-
-  return (
-    <div className="in-app-viewer-overlay" onClick={onClose}>
-      <div className="in-app-viewer-modal" onClick={e => e.stopPropagation()}>
-        <div className="in-app-viewer-header">
-          <div className="in-app-viewer-header-left">
-            <button className="icon-button tiny" onClick={onClose}><ArrowLeft size={16}/></button>
-            <div>
-              <h3>{item.title}</h3>
-              <small style={{fontSize: '11px', color: '#796f64'}}>{item.fileName} ({prettySize(item.fileSize)})</small>
-            </div>
-          </div>
-          <button className="icon-button tiny" onClick={onClose}><X size={16}/></button>
-        </div>
-
-        <div className="in-app-viewer-body">
-          {isPdf ? (
-            <iframe src={blobUrl} title={item.fileName} />
-          ) : isImage ? (
-            <img src={blobUrl} alt={item.fileName} />
-          ) : textContent !== null ? (
-            <pre>{textContent}</pre>
-          ) : (
-            <div style={{textAlign: 'center', padding: '30px'}}>
-              <FileText size={48} style={{margin: '0 auto 12px', color: '#718c75'}}/>
-              <h4>{item.fileName}</h4>
-              <p style={{fontSize: '12px', color: '#796f64', marginTop: '6px'}}>This file is downloaded offline inside ClassFlow.</p>
-              <button
-                className="button button-primary compact"
-                style={{marginTop: '16px'}}
-                onClick={() => {
-                  const a = document.createElement('a');
-                  a.href = blobUrl;
-                  a.download = item.fileName;
-                  a.click();
-                }}
-              >
-                <ArrowDownToLine size={14}/> Open with Phone App
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="in-app-viewer-footer">
-          <span><b>In-App Offline Reader:</b> Stored locally on device</span>
-          <button
-            className="button button-secondary compact"
-            style={{minHeight: '28px', fontSize: '11px'}}
-            onClick={() => {
-              const a = document.createElement('a');
-              a.href = blobUrl;
-              a.download = item.fileName;
-              a.click();
-              toast('Saved copy to phone file manager.');
-            }}
-          >
-            <ArrowDownToLine size={13}/> Save to Phone Files
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function Welcome({user}:{user:Profile|null}) { const navigate=useNavigate(); return <div className="welcome-page">
   <section className="welcome-hero">
     <div className="welcome-copy"><div className="eyebrow"><span className="eyebrow-dot"/> A calmer campus, together</div><h1>Your academic<br/><em>life, in flow.</em></h1><p className="hero-description">One thoughtful space for class notes, campus conversations and the people who make learning better.</p>
@@ -776,63 +294,27 @@ function ResourceRow({resources,loading}:{resources:any[];loading:boolean}) { if
 
 function LibraryPage({user}:{user:Profile|null}) {
   const [q,setQ]=useState('');const safeQuery=q.trim().replace(/[^\p{L}\p{N}\s_-]/gu,''); const [category,setCategory]=useState(''); const [sort,setSort]=useState('newest'); const [filterOpen,setFilterOpen]=useState(false);const [branchFilter,setBranchFilter]=useState('');const [semesterFilter,setSemesterFilter]=useState('');const [subjectFilter,setSubjectFilter]=useState('');
-  const cachedResources = useMemo(() => {
-    try {
-      const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('classflow_offline_cache') : null;
-      return stored ? JSON.parse(stored) as Resource[] : [];
-    } catch {
-      return [];
-    }
-  }, []);
-
   const filterBranches=useQuery({queryKey:['branches'],enabled:!!supabase&&!!user,queryFn:async()=>{const {data,error}=await requireBackend().from('branches').select('id,name').eq('is_active',true).order('name');if(error)throw error;return data??[];}});
   const filterSemesters=useQuery({queryKey:['semesters'],enabled:!!supabase&&!!user,queryFn:async()=>{const {data,error}=await requireBackend().from('semesters').select('id,name,number').eq('is_active',true).order('number');if(error)throw error;return data??[];}});
   const filterSubjects=useQuery({queryKey:['library-subjects',branchFilter,semesterFilter],enabled:!!supabase&&!!user,queryFn:async()=>{let q=requireBackend().from('subjects').select('id,name,branch_id,semester_id').eq('is_active',true).order('name');if(branchFilter)q=q.eq('branch_id',branchFilter);if(semesterFilter)q=q.eq('semester_id',semesterFilter);const {data,error}=await q;if(error)throw error;return data??[];}});
   const query=useQuery({queryKey:['resources',q,category,sort,branchFilter,semesterFilter,subjectFilter],enabled:!!supabase&&!!user,queryFn:async()=>{let request=requireBackend().from('resources').select('id,title,description,category,assignment_type,branch_id,semester_id,subject_id,unit_module,tags,page_count,created_at,updated_at,profiles:profiles!resources_uploaded_by_fkey(full_name,classflow_id),subject:subjects!resources_subject_id_fkey(name),branch:branches!resources_branch_id_fkey(name),semester:semesters!resources_semester_id_fkey(name),resource_files(id,original_name,mime_type,size_bytes,storage_path)').eq('is_published',true).is('deleted_at',null).is('resource_files.deleted_at',null);if(safeQuery) request=request.or(`title.ilike.%${safeQuery}%,description.ilike.%${safeQuery}%,unit_module.ilike.%${safeQuery}%`);if(category)request=request.eq('category',category);if(branchFilter)request=request.or(`branch_id.eq.${branchFilter},branch_id.is.null`);if(semesterFilter)request=request.or(`semester_id.eq.${semesterFilter},semester_id.is.null`);if(subjectFilter)request=request.or(`subject_id.eq.${subjectFilter},subject_id.is.null`);if(sort==='oldest')request=request.order('created_at',{ascending:true});else if(sort==='title')request=request.order('title',{ascending:true});else request=request.order('updated_at',{ascending:false});request=request.limit(60);const {data,error}=await request;if(error)throw error;const results=(data??[]) as unknown as Resource[];if(sort==='downloads'){const {data:counts,error:countError}=await requireBackend().rpc('resource_download_counts');if(countError)throw countError;const ranking=new Map<string,number>((counts??[]).map((row:any)=>[row.resource_id,Number(row.downloads)] as [string,number]));return results.sort((a,b)=>(ranking.get(b.id)||0)-(ranking.get(a.id)||0));}return results;}});
-
-  useEffect(() => {
-    if (query.data && query.data.length > 0 && typeof localStorage !== 'undefined') {
-      try {
-        localStorage.setItem('classflow_offline_cache', JSON.stringify(query.data.slice(0, 40)));
-      } catch {}
-    }
-  }, [query.data]);
-
-  const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
-  const displayResources = (query.data && query.data.length > 0) ? query.data : ((isOffline || query.isError) ? cachedResources : []);
-  const isUsingCache = !query.data?.length && Boolean(displayResources.length);
-
-  return <><PageHeading eyebrow="SHARED KNOWLEDGE" title="Resource library" description="Useful material, thoughtfully shared by your campus." action={<div style={{display:'flex',gap:'8px'}}><Link to="/downloads" className="button button-secondary compact"><ArrowDownToLine size={15}/> In-App Downloads 📥</Link><Link to="/upload" className="button button-primary compact"><Plus size={16}/> Share resource</Link></div>}/>
+  return <><PageHeading eyebrow="SHARED KNOWLEDGE" title="Resource library" description="Useful material, thoughtfully shared by your campus." action={<Link to="/upload" className="button button-primary compact"><Plus size={16}/> Share resource</Link>}/>
     <div className="library-search-row"><div className="library-search"><Search size={17}/><input aria-label="Search resources" placeholder="Search notes, subjects, topics..." value={q} onChange={e=>setQ(e.target.value)}/>{q&&<button className="clear-search" onClick={()=>setQ('')}><X size={15}/></button>}</div><button className={`filter-button ${filterOpen?'pressed':''}`} onClick={()=>setFilterOpen(!filterOpen)}><Filter size={16}/> Filters <ChevronDown size={14}/></button><select className="sort-select" value={sort} onChange={e=>setSort(e.target.value)} aria-label="Sort resources"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="downloads">Most downloaded</option><option value="title">Alphabetical</option></select></div>
     {filterOpen&&<div className="filter-panel glass-panel"><span className="filter-label">CATEGORY</span><button className={`filter-chip ${category===''?'active':''}`} onClick={()=>setCategory('')}>All resources</button>{categories.map(c=><button key={c} className={`filter-chip ${category===c?'active':''}`} onClick={()=>setCategory(category===c?'':c)}>{c}</button>)}<span className="filter-label filter-break">ACADEMIC</span><select className="filter-select" value={branchFilter} onChange={e=>{setBranchFilter(e.target.value);setSubjectFilter('');}}><option value="">All branches</option>{filterBranches.data?.map((b:any)=><option key={b.id} value={b.id}>{b.name}</option>)}</select><select className="filter-select" value={semesterFilter} onChange={e=>{setSemesterFilter(e.target.value);setSubjectFilter('');}}><option value="">All semesters</option>{filterSemesters.data?.map((s:any)=><option key={s.id} value={s.id}>{s.name}</option>)}</select><select className="filter-select" value={subjectFilter} onChange={e=>setSubjectFilter(e.target.value)}><option value="">All subjects</option>{filterSubjects.data?.map((s:any)=><option key={s.id} value={s.id}>{s.name}</option>)}</select></div>}
-    <div className="library-subhead"><span>{displayResources.length} {displayResources.length===1?'resource':'resources'} {isUsingCache&&<span className="offline-badge">Offline Cached</span>}</span><span>Shared knowledge, kept close</span></div>
-    {query.isError && !displayResources.length ? (
-      <OfflineCard onRetry={()=>void query.refetch()} />
-    ) : (
-      <>
-        {isUsingCache && <div className="inline-notice"><AlertCircle size={15}/><span>You are offline. Showing previously cached notes. Connect to WiFi or mobile data to fetch new uploads.</span><button className="text-button" onClick={()=>void query.refetch()}>Retry <RefreshCw size={12}/></button></div>}
-        {query.isLoading ? (
-          <div className="resource-grid">{[1,2,3,4].map(i=><div className="skeleton-card library-skeleton" key={i}/>)}</div>
-        ) : displayResources.length ? (
-          <div className="resource-grid">{displayResources.map(r=><ResourceCard resource={r} key={r.id} user={user}/>)}</div>
-        ) : (
-          <DataState title={backendConfigured&&user?'No matching class material found.':'Your campus library is ready to grow'} text={backendConfigured&&user?'Try another search or category, or share a helpful resource with your classmates.':'After connecting your campus, find notes, assignments, practicals and more in one place.'} icon={<BookOpen size={22}/>} action={<Link to={backendConfigured&&user?'/upload':'/settings'} className="button button-secondary compact">{backendConfigured&&user?'Share a resource':'Connect your campus'} <ArrowRight size={14}/></Link>}/>
-        )}
-      </>
-    )}
+    <div className="library-subhead"><span>{query.data?.length??0} {query.data?.length===1?'resource':'resources'}</span><span>Shared knowledge, kept close</span></div>
+    {query.isError&&<div className="inline-error"><AlertCircle size={16}/>Couldn’t load resources. Please try again in a moment.<button onClick={()=>void query.refetch()}>Retry</button></div>}
+    {query.isLoading?<div className="resource-grid">{[1,2,3,4].map(i=><div className="skeleton-card library-skeleton" key={i}/>)}</div>:query.data?.length?<div className="resource-grid">{query.data.map(r=><ResourceCard resource={r} key={r.id} user={user}/>)}</div>:<DataState title={backendConfigured&&user?'No matching class material found.':'Your campus library is ready to grow'} text={backendConfigured&&user?'Try another search or category, or share a helpful resource with your classmates.':'After connecting your campus, find notes, assignments, practicals and more in one place.'} icon={<BookOpen size={22}/>} action={<Link to={backendConfigured&&user?'/upload':'/settings'} className="button button-secondary compact">{backendConfigured&&user?'Share a resource':'Connect your campus'} <ArrowRight size={14}/></Link>}/>}
   </>;
 }
 function ResourceCard({resource:r,user}:{resource:Resource;user:Profile|null}) {
-  const [busy,setBusy]=useState(false);const [saved,setSaved]=useState(false);const [coverUrl,setCoverUrl]=useState<string|null>(null);const [downloadedInApp,setDownloadedInApp]=useState(false);const [savingInApp,setSavingInApp]=useState(false);const queryClient=useQueryClient();const own=r.profiles?.classflow_id===user?.classflow_id;const canManage=own||user?.role==='admin'||Boolean(user?.permissions?.some(p=>['resources.manage','resources.edit'].includes(p)));const canDelete=own||user?.role==='admin'||Boolean(user?.permissions?.some(p=>['resources.manage','resources.delete'].includes(p)));
+  const [busy,setBusy]=useState(false);const [saved,setSaved]=useState(false);const [coverUrl,setCoverUrl]=useState<string|null>(null);const queryClient=useQueryClient();const own=r.profiles?.classflow_id===user?.classflow_id;const canManage=own||user?.role==='admin'||Boolean(user?.permissions?.some(p=>['resources.manage','resources.edit'].includes(p)));const canDelete=own||user?.role==='admin'||Boolean(user?.permissions?.some(p=>['resources.manage','resources.delete'].includes(p)));
   useEffect(()=>{if(!supabase||!user)return;void requireBackend().from('bookmarks').select('resource_id').eq('resource_id',r.id).eq('user_id',user.id).maybeSingle().then(({data})=>setSaved(Boolean(data)));},[r.id,user?.id]);
-  useEffect(()=>{void isResourceDownloaded(r.id).then(res=>setDownloadedInApp(res));},[r.id]);
   const isImageFile=(file:any)=>file?.mime_type?.toLowerCase().startsWith('image/')||/\.(png|jpe?g|gif|webp)$/i.test(file?.original_name||'');
   const coverFile=r.resource_files?.find(isImageFile)||r.resource_files?.[0];
   useEffect(()=>{let cancelled=false;if(!coverFile||!isImageFile(coverFile)||!supabase||!user){setCoverUrl(null);return;}void requireBackend().storage.from('classflow-resources').createSignedUrl(coverFile.storage_path,600).then(({data,error})=>{if(!cancelled)setCoverUrl(error?null:data?.signedUrl||null);}).catch(()=>{if(!cancelled)setCoverUrl(null);});return()=>{cancelled=true;};},[coverFile?.storage_path,user?.id]);
   const iconFor=(f:string)=>{const ext=f.split('.').pop()?.toLowerCase();return ext==='zip'?<FileArchive size={17}/>:['png','jpg','jpeg','gif','webp'].includes(ext||'')?<FileImage size={17}/>:<FileText size={17}/>;};
   async function signedUrl(file:{original_name:string;storage_path:string},downloadFile:boolean){if(!supabase)return null;const {data,error}=await requireBackend().storage.from('classflow-resources').createSignedUrl(file.storage_path,60,downloadFile?{download:file.original_name}:{});if(error)throw error;return data.signedUrl;}
   async function download(file:{original_name:string;storage_path:string}){setBusy(true);try{const url=await signedUrl(file,true);if(url){if(user)await requireBackend().from('resource_downloads').insert({resource_id:r.id,user_id:user.id});const a=document.createElement('a');a.href=url;a.download=file.original_name;a.rel='noreferrer';a.click();}}catch(e){toast(e instanceof Error?e.message:'Download could not be prepared.');}finally{setBusy(false);}}
-  async function saveInApp(file:{id?:string;original_name:string;storage_path:string;mime_type?:string;size_bytes?:number}){setSavingInApp(true);try{const url=await signedUrl(file,true);if(!url)throw new Error('Link could not be generated.');if(user)await requireBackend().from('resource_downloads').insert({resource_id:r.id,user_id:user.id});await downloadResourceLocally(r,{id:file.id||file.storage_path,original_name:file.original_name,mime_type:file.mime_type||'application/pdf',size_bytes:file.size_bytes||0},url);setDownloadedInApp(true);toast(`"${file.original_name}" saved to In-App Downloads! Read anytime offline.`);}catch(e){toast(e instanceof Error?e.message:'In-app download failed.');}finally{setSavingInApp(false);}}
   async function preview(file:{original_name:string;storage_path:string}){const previewWindow=window.open('about:blank','_blank');if(previewWindow)previewWindow.opener=null;setBusy(true);try{const url=await signedUrl(file,false);if(url){if(previewWindow)previewWindow.location.href=url;else window.location.assign(url);}else previewWindow?.close();}catch(e){previewWindow?.close();toast(e instanceof Error?e.message:'Preview could not be prepared.');}finally{setBusy(false);}}
   async function toggleBookmark(){if(!supabase||!user){toast('Sign in to save resources to your collection.');return;}const db=requireBackend();const response=saved?await db.from('bookmarks').delete().eq('resource_id',r.id).eq('user_id',user.id):await db.from('bookmarks').insert({resource_id:r.id,user_id:user.id});if(response.error){toast(response.error.message);return;}setSaved(!saved);await queryClient.invalidateQueries({queryKey:['dashboard-resources']});toast(saved?'Removed from saved resources.':'Saved to your collection.');}
   async function removeResource(){if(!supabase||!user||!canDelete||!window.confirm('Move this resource to the campus archive? You can ask an administrator to restore it.'))return;const {error}=await requireBackend().from('resources').update({deleted_at:new Date().toISOString()}).eq('id',r.id);if(error){toast(error.message);return;}await queryClient.invalidateQueries({queryKey:['resources']});toast('Resource archived.');}
@@ -845,8 +327,8 @@ function ResourceCard({resource:r,user}:{resource:Resource;user:Profile|null}) {
       {(r.resource_files?.length||0)>1&&<span className="resource-cover-count">+{r.resource_files!.length-1} more</span>}
     </div>
     <div className="resource-card-body"><h3>{r.title}</h3><p className="resource-description">{r.description||'A class resource shared with the campus community.'}</p><div className="resource-meta"><span>{r.profiles?.full_name||'Campus member'}</span><i/><span>{relativeTime(r.created_at)}</span></div>
-      <div className="resource-card-footer"><span className="file-count"><FileText size={13}/>{r.resource_files?.length??0} {r.resource_files?.length===1?'file':'files'}{r.page_count?` · ${r.page_count} pages`:''}</span><div className="resource-actions">{first&&<><button className="small-action" onClick={()=>void preview(first)} disabled={busy} aria-label="Preview resource"><Eye size={13}/>Preview</button>{downloadedInApp?<Link to="/downloads" className="small-action in-app-downloaded-pill" title="Saved offline in In-App Downloads"><Check size={12}/>Saved</Link>:<button className="small-action" onClick={()=>void saveInApp(first)} disabled={savingInApp} title="Download inside app for offline reading"><ArrowDownToLine size={13}/>{savingInApp?'Saving…':'Download'}</button>}</>}{canManage&&<Link to={`/upload?edit=${r.id}`} className="small-action" aria-label="Edit resource"><Pencil size={14}/></Link>}{canDelete&&<button className="small-action danger-action" aria-label="Archive resource" onClick={()=>void removeResource()}><Trash2 size={13}/></button>}</div></div>
-      {r.resource_files?.length?<details className="attached-files"><summary>{r.resource_files.length} attached {r.resource_files.length===1?'file':'files'} <ChevronDown size={12}/></summary><div>{r.resource_files.map(f=><div key={f.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'8px',padding:'6px 0',borderBottom:'1px solid #f0e9dc'}}><div style={{display:'flex',alignItems:'center',gap:'8px',minWidth:0}}><span className="attached-file-icon">{iconFor(f.original_name)}</span><span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f.original_name}</span><small>{prettySize(f.size_bytes)}</small></div><div style={{display:'flex',gap:'6px'}}><button className="small-action" onClick={()=>void saveInApp(f)} disabled={savingInApp} title="Save into app"><ArrowDownToLine size={12}/>In App</button><button className="small-action" onClick={()=>void download(f)} disabled={busy} title="Download to device"><FileText size={12}/>Device</button></div></div>)}</div></details>:null}
+      <div className="resource-card-footer"><span className="file-count"><FileText size={13}/>{r.resource_files?.length??0} {r.resource_files?.length===1?'file':'files'}{r.page_count?` · ${r.page_count} pages`:''}</span><div className="resource-actions">{first&&<><button className="small-action" onClick={()=>void preview(first)} disabled={busy} aria-label="Preview resource"><Eye size={13}/>Preview</button><button className="small-action" onClick={()=>void download(first)} disabled={busy} aria-label="Download resource"><ArrowDownToLine size={13}/>{busy?'…':'Download'}</button></>}{canManage&&<Link to={`/upload?edit=${r.id}`} className="small-action" aria-label="Edit resource"><Pencil size={14}/></Link>}{canDelete&&<button className="small-action danger-action" aria-label="Archive resource" onClick={()=>void removeResource()}><Trash2 size={13}/></button>}</div></div>
+      {r.resource_files?.length?<details className="attached-files"><summary>{r.resource_files.length} attached {r.resource_files.length===1?'file':'files'} <ChevronDown size={12}/></summary><div>{r.resource_files.map(f=><button key={f.id} onClick={()=>void download(f)}><span className="attached-file-icon">{iconFor(f.original_name)}</span><span>{f.original_name}</span><small>{prettySize(f.size_bytes)}</small><ArrowDownToLine size={13}/></button>)}</div></details>:null}
     </div>
   </motion.article>;
 }
@@ -1062,44 +544,7 @@ function AdminPage({user}:{user:Profile|null}) {
   </>;
 }
 
-function SettingsPage({user, onCheckUpdate, onShowUpdateModal}:{user:Profile|null; onCheckUpdate?: () => void; onShowUpdateModal?: () => void}) { return <><PageHeading eyebrow="PLATFORM PREFERENCES" title="Settings & integrations" description="Connect the services that bring your ClassFlow campus to life."/><div className="settings-intro glass-panel"><span className="setting-lock"><LockKeyhole size={18}/></span><div><h3>Credentials stay server-side</h3><p>Supabase's public client key is designed for browser use under RLS. Service-role keys, AI credentials and LiveKit secrets must only be saved through a protected server-side configuration endpoint.</p></div><span className="security-badge"><ShieldCheck size={14}/> Secrets server-side</span></div><div className="integration-card glass-panel"><div className="integration-logo supabase-logo">S</div><div className="integration-details"><span className="integration-type">DATABASE & AUTH</span><h3>Supabase</h3><p>Postgres, accounts, private file storage and realtime updates.</p></div><span className={`status-pill ${backendConfigured?'connected':'not-connected'}`}><i/>{backendConfigured?'Client configured':'Not configured'}</span><div className="integration-footer"><div className="integration-footnote">{backendConfigured?'Project URL and publishable key detected in the browser build.':'The project URL and public/publishable key initialize the browser client.'}</div><button className="button button-secondary compact" onClick={()=>toast(backendConfigured?'Supabase client is configured. Verify server access in your project dashboard.':'See the .env.example and README for the secure initial setup steps.')}><CircleHelp size={14}/> Setup instructions</button></div></div>
-  <div className="integration-card glass-panel" style={{marginTop: '16px'}}>
-    <div className="integration-logo" style={{background: '#718c75', color: '#fff', fontSize: '13px', fontWeight: 700}}>PWA</div>
-    <div className="integration-details">
-      <span className="integration-type">PWA & OFFLINE ENGINE</span>
-      <h3>ClassFlow Offline & Updates</h3>
-      <p>Service Worker v4 active. Instant in-app update popups and offline cached notes enabled.</p>
-    </div>
-    <span className="status-pill connected"><i/>Ready</span>
-    <div className="integration-footer">
-      <div className="integration-footnote">Version {APP_VERSION} (Direct In-App Updates Active)</div>
-      <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
-        <button className="button button-primary compact" onClick={onCheckUpdate}>
-          <Sparkles size={14}/> Check for Updates
-        </button>
-        <button className="button button-secondary compact" onClick={onShowUpdateModal}>
-          <Sparkles size={14}/> Show Update Popup
-        </button>
-        <Link to="/offline" className="button button-secondary compact">
-          <Eye size={14}/> Preview Offline Screen
-        </Link>
-        <button className="button button-secondary compact" onClick={async () => {
-          if ('caches' in window) {
-            const names = await caches.keys();
-            await Promise.all(names.map(name => caches.delete(name)));
-          }
-          if ('serviceWorker' in navigator) {
-            const regs = await navigator.serviceWorker.getRegistrations();
-            await Promise.all(regs.map(r => r.unregister()));
-          }
-          toast('Caches cleared! Reloading fresh version…');
-          setTimeout(() => window.location.reload(), 600);
-        }}>
-          <RefreshCw size={14}/> Force Reload
-        </button>
-      </div>
-    </div>
-  </div>
+function SettingsPage({user}:{user:Profile|null}) { return <><PageHeading eyebrow="PLATFORM PREFERENCES" title="Settings & integrations" description="Connect the services that bring your ClassFlow campus to life."/><div className="settings-intro glass-panel"><span className="setting-lock"><LockKeyhole size={18}/></span><div><h3>Credentials stay server-side</h3><p>Supabase's public client key is designed for browser use under RLS. Service-role keys, AI credentials and LiveKit secrets must only be saved through a protected server-side configuration endpoint.</p></div><span className="security-badge"><ShieldCheck size={14}/> Secrets server-side</span></div><div className="integration-card glass-panel"><div className="integration-logo supabase-logo">S</div><div className="integration-details"><span className="integration-type">DATABASE & AUTH</span><h3>Supabase</h3><p>Postgres, accounts, private file storage and realtime updates.</p></div><span className={`status-pill ${backendConfigured?'connected':'not-connected'}`}><i/>{backendConfigured?'Client configured':'Not configured'}</span><div className="integration-footer"><div className="integration-footnote">{backendConfigured?'Project URL and publishable key detected in the browser build.':'The project URL and public/publishable key initialize the browser client.'}</div><button className="button button-secondary compact" onClick={()=>toast(backendConfigured?'Supabase client is configured. Verify server access in your project dashboard.':'See the .env.example and README for the secure initial setup steps.')}><CircleHelp size={14}/> Setup instructions</button></div></div>
   <div className="integrations-grid"><IntegrationCard icon={<Sparkles size={18}/>} name="AI provider" detail="Groq Llama 3.3 · server-side · 40 requests/day" status="Key stored · test pending" configured/><IntegrationCard icon={<Activity size={18}/>} name="LiveKit" detail="Secure audio and video calls" status="Not configured"/><IntegrationCard icon={<Send size={18}/>} name="Email provider" detail="Transactional campus notifications" status="Not configured"/></div>
   <div className="safe-config-note"><ShieldCheck size={17}/><div><b>Provider keys stay out of the browser</b><p>Groq credentials are stored as Supabase Edge Function secrets and are never included in this frontend. The key is configured, but a successful model response still needs an authenticated Copilot smoke test. Rotate it through Supabase secrets management. Document extraction, embeddings and LiveKit remain separate integrations.</p></div></div>
   <div className="settings-footer"><span>Signed in as {user?.full_name||'Guest'}</span><span>Application setup guide is included in <code>README.md</code></span></div></>; }

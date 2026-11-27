@@ -1,11 +1,11 @@
 {
-  "version": "1.2.5",
-  "buildTime": 1795769000000,
-  "title": "Clean Navigation & Reliable Fast Loading",
+  "version": "1.2.6",
+  "buildTime": 1795770000000,
+  "title": "Restored Original Visual Polish & Design System",
   "highlights": [
-    "Fixed navigation cache matching on reload",
-    "Restored original branded opening screen",
-    "Zero unwanted automatic page reloads",
-    "Clean and authentic ClassFlow UI"
+    "Restored exact original ClassFlow buttons, cards, colors & navigation",
+    "Snappy 1.2s opening animation",
+    "Network-first service worker cache v10 with clean refresh",
+    "Zero layout regressions or unwanted overlays"
   ]
 }
