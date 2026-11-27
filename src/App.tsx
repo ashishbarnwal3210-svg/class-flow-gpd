@@ -24,7 +24,7 @@ type Resource = {
 };
 type Profile = { id: string; full_name: string; username: string; classflow_id: string; role?: string; permissions?: string[]; avatar_url?: string | null; bio?: string | null };
 const categories = ['Notes', 'Assignment', 'Practical', 'Lab Manual', 'PYQ', 'Notice', 'Syllabus', 'Question Bank', 'Other'];
-const APP_VERSION = '1.2.4';
+const APP_VERSION = '1.2.5';
 const relativeTime = (d: string) => { const delta = Date.now() - new Date(d).getTime(); if (delta < 60_000) return 'Just now'; if (delta < 3_600_000) return `${Math.floor(delta / 60_000)}m ago`; if (delta < 86_400_000) return `${Math.floor(delta / 3_600_000)}h ago`; return new Date(d).toLocaleDateString(); };
 const prettySize = (n: number) => n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
 const fileKey = (f:File) => `${f.name}:${f.size}:${f.lastModified}`;

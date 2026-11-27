@@ -70,14 +70,6 @@
             setInterval(function() { reg.update(); }, 60000);
           }).catch(function() {});
         });
-
-        var isReloading = false;
-        navigator.serviceWorker.addEventListener('controllerchange', function() {
-          if (!isReloading) {
-            isReloading = true;
-            window.location.reload();
-          }
-        });
       }
     </script>
   </body>

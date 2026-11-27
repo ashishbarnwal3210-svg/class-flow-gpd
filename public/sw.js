@@ -1,4 +1,4 @@
-const CACHE_NAME = 'classflow-cache-v7';
+const CACHE_NAME = 'classflow-cache-v8';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -144,13 +144,20 @@ self.addEventListener('fetch', (event) => {
         .then((response) => {
           if (response && response.status === 200) {
             const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, copy.clone());
+              cache.put('/index.html', copy.clone());
+              cache.put('/', copy);
+            });
           }
           return response;
         })
         .catch(async () => {
           const cache = await caches.open(CACHE_NAME);
-          const cached = await (cache.match(event.request) || cache.match('/') || cache.match('/index.html') || cache.match('/offline.html'));
+          const cached = (await cache.match(event.request))
+            || (await cache.match('/index.html'))
+            || (await cache.match('/'))
+            || (await cache.match('/offline.html'));
           if (cached) return cached;
           // Guaranteed fallback: Return inline cute mascot HTML response so Chrome NEVER throws ERR_FAILED!
           return new Response(INLINE_OFFLINE_HTML, {

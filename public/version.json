@@ -1,11 +1,11 @@
 {
-  "version": "1.2.4",
-  "buildTime": 1795768000000,
-  "title": "UI Restored & Snappy 1s App Opening Animation",
+  "version": "1.2.5",
+  "buildTime": 1795769000000,
+  "title": "Clean Navigation & Reliable Fast Loading",
   "highlights": [
-    "Fast 1.2s opening animation (no long loading delay)",
-    "Restored clean bottom mobile navigation with center + button",
-    "Clean card actions: 1-tap download & preview",
-    "Zero screen clutter & guaranteed offline reliability"
+    "Fixed navigation cache matching on reload",
+    "Restored original branded opening screen",
+    "Zero unwanted automatic page reloads",
+    "Clean and authentic ClassFlow UI"
   ]
 }
