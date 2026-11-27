@@ -128,9 +128,42 @@
 /* The real ClassFlow mark, cropped from the owner's supplied logo image. */
 .brand-glyph{display:block;object-fit:cover;border-radius:10px;box-shadow:0 5px 12px #879b8740;transition:transform .35s cubic-bezier(.2,.8,.2,1),filter .35s}
 .brand:hover .brand-glyph,.brand:focus-visible .brand-glyph{transform:translateY(-1px) rotate(-4deg) scale(1.045);filter:saturate(1.06)}
-.boot-screen .brand-mark{display:block;width:68px;height:68px;object-fit:cover;border-radius:21px;background:transparent;box-shadow:0 13px 30px #879b8755;animation:classflow-logo-in .72s cubic-bezier(.2,.8,.2,1) both,classflow-logo-breathe 2.8s ease-in-out .72s infinite}
-@keyframes classflow-logo-in{from{opacity:0;transform:translateY(8px) scale(.78) rotate(-10deg)}to{opacity:1;transform:translateY(0) scale(1) rotate(0)}}
-@keyframes classflow-logo-breathe{0%,100%{transform:scale(1) rotate(0)}50%{transform:scale(1.045) rotate(1.5deg)}}
+.boot-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  background: #f5f1e9;
+  gap: 10px;
+  z-index: 99999;
+}
+.boot-screen .brand-mark{display:block;width:62px;height:62px;object-fit:cover;border-radius:19px;background:transparent;box-shadow:0 12px 28px rgba(135,155,135,0.35);animation:classflow-logo-in .45s cubic-bezier(.2,.8,.2,1) both}
+.boot-word {
+  font: 600 21px 'Playfair Display', Georgia, serif;
+  color: #3d342d;
+  letter-spacing: -0.4px;
+}
+.loader-line {
+  width: 80px;
+  height: 3px;
+  background: #e5dfd4;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+.loader-line:after {
+  content: '';
+  display: block;
+  height: 100%;
+  width: 45%;
+  background: linear-gradient(90deg, #91a995, #718d78);
+  border-radius: 999px;
+  animation: load 0.75s ease-in-out infinite;
+}
+@keyframes classflow-logo-in{from{opacity:0;transform:translateY(6px) scale(.84) rotate(-5deg)}to{opacity:1;transform:translateY(0) scale(1) rotate(0)}}
+@keyframes classflow-logo-breathe{0%,100%{transform:scale(1) rotate(0)}50%{transform:scale(1.03) rotate(1deg)}}
 @media(prefers-reduced-motion:reduce){.brand-glyph{transition:none}.brand:hover .brand-glyph,.brand:focus-visible .brand-glyph{transform:none}.boot-screen .brand-mark{animation:none}}
 
 /* PWA in-app installation banner and buttons */
@@ -399,60 +432,7 @@
   margin-left: 8px;
 }
 
-/* In-App Direct Update Popup & Floating Bar */
-.update-floating-bar {
-  position: fixed;
-  bottom: 84px;
-  left: 16px;
-  right: 16px;
-  max-width: 480px;
-  margin: 0 auto;
-  z-index: 999;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 16px;
-  background: #2d261e;
-  color: #fbf7ee;
-  border-radius: 16px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.32);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  animation: slide-up .35s cubic-bezier(0.16, 1, 0.3, 1);
-  cursor: pointer;
-}
-@media (min-width: 768px) {
-  .update-floating-bar {
-    bottom: 24px;
-    right: 24px;
-    left: auto;
-    width: 400px;
-  }
-}
-.update-floating-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  font-size: 12px;
-}
-.update-floating-left b {
-  color: #e2a35c;
-}
-.update-pulse-ring {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #52c41a;
-  box-shadow: 0 0 0 0 rgba(82, 196, 26, 0.7);
-  animation: pulse-ring 1.8s infinite cubic-bezier(0.66, 0, 0, 1);
-  flex-shrink: 0;
-}
-@keyframes pulse-ring {
-  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(82, 196, 26, 0.7); }
-  70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(82, 196, 26, 0); }
-  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(82, 196, 26, 0); }
-}
+/* In-App Centered Update Modal */
 .update-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -596,6 +576,14 @@
 @keyframes update-glow {
   0%, 100% { box-shadow: 0 3px 10px rgba(217, 119, 54, 0.35); }
   50% { box-shadow: 0 3px 18px rgba(217, 119, 54, 0.6); }
+}
+@media(max-width: 620px) {
+  .update-header-btn {
+    height: 30px;
+    padding: 0 9px;
+    font-size: 10px;
+    gap: 4px;
+  }
 }
 
 /* Fullscreen Cute Mascot Offline Screen */

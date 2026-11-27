@@ -1,11 +1,11 @@
 {
-  "version": "1.2.3",
-  "buildTime": 1795765000000,
-  "title": "In-App Downloads & Guaranteed Offline Engine",
+  "version": "1.2.4",
+  "buildTime": 1795768000000,
+  "title": "UI Restored & Snappy 1s App Opening Animation",
   "highlights": [
-    "Hotstar-style in-app downloads saved directly on device",
-    "Guaranteed cute mascot offline screen (no ERR_FAILED)",
-    "Centered 1-tap update popup with smooth animation",
-    "Auto-hides update button once updated"
+    "Fast 1.2s opening animation (no long loading delay)",
+    "Restored clean bottom mobile navigation with center + button",
+    "Clean card actions: 1-tap download & preview",
+    "Zero screen clutter & guaranteed offline reliability"
   ]
 }

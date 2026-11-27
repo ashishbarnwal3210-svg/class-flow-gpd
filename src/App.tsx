@@ -24,14 +24,15 @@ type Resource = {
 };
 type Profile = { id: string; full_name: string; username: string; classflow_id: string; role?: string; permissions?: string[]; avatar_url?: string | null; bio?: string | null };
 const categories = ['Notes', 'Assignment', 'Practical', 'Lab Manual', 'PYQ', 'Notice', 'Syllabus', 'Question Bank', 'Other'];
-const APP_VERSION = '1.2.3';
+const APP_VERSION = '1.2.4';
 const relativeTime = (d: string) => { const delta = Date.now() - new Date(d).getTime(); if (delta < 60_000) return 'Just now'; if (delta < 3_600_000) return `${Math.floor(delta / 60_000)}m ago`; if (delta < 86_400_000) return `${Math.floor(delta / 3_600_000)}h ago`; return new Date(d).toLocaleDateString(); };
 const prettySize = (n: number) => n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
 const fileKey = (f:File) => `${f.name}:${f.size}:${f.lastModified}`;
+const isTestEnv = import.meta.env.MODE === 'test';
 
 function App() {
   const [user, setUser] = useState<Profile | null>(null);
-  const [authLoading, setAuthLoading] = useState(backendConfigured);
+  const [booting, setBooting] = useState(!isTestEnv && backendConfigured);
   const [menuOpen, setMenuOpen] = useState(false);
   const [notificationsOpen,setNotificationsOpen]=useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -46,6 +47,15 @@ function App() {
   const [isUpdating, setIsUpdating] = useState(false);
   const location = useLocation();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (isTestEnv || !backendConfigured) return;
+    // Fast 1.2s app opening animation (1 to 2 sec max)
+    const timer = setTimeout(() => {
+      setBooting(false);
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -206,10 +216,9 @@ function App() {
   const campusUpdates=useQuery({queryKey:['campus-updates',user?.id],enabled:!!supabase&&!!user,queryFn:async()=>{const {data,error}=await requireBackend().from('notices').select('id,title,body,priority,created_at').eq('is_published',true).is('deleted_at',null).order('created_at',{ascending:false}).limit(6);if(error)throw error;return data??[];}});
   useEffect(()=>{setNotificationsOpen(false);},[location.pathname]);
   useEffect(() => {
-    if (!supabase) { setAuthLoading(false); return; }
+    if (!supabase) return;
     supabase.auth.getSession().then(async ({ data }) => {
       if (data.session?.user) await loadProfile(data.session.user.id); else setUser(null);
-      setAuthLoading(false);
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) window.setTimeout(() => { void loadProfile(session.user.id); }, 0); else { setUser(null); queryClient.clear(); }
@@ -225,7 +234,7 @@ function App() {
   }
   const pageTitle = useMemo(() => ({ '/dashboard':'Dashboard','/library':'Resource library','/downloads':'In-App Downloads','/copilot':'ClassFlow Copilot','/upload':'Share a resource','/communities':'Campus network','/messages':'Messages','/profile':'Your profile','/admin':'Admin studio','/settings':'Settings','/offline':'Offline study' } as Record<string,string>)[location.pathname] ?? 'Welcome to ClassFlow', [location.pathname]);
   const signOut = async () => { if (supabase) await supabase.auth.signOut(); setMenuOpen(false); };
-  if (authLoading) return <div className="boot-screen"><img className="brand-mark" src="/classflow-mark.webp" alt="ClassFlow"/><span className="boot-word">ClassFlow</span><div className="loader-line" /></div>;
+  if (booting) return <div className="boot-screen"><img className="brand-mark" src="/classflow-mark.webp" alt="ClassFlow"/><span className="boot-word">ClassFlow</span><div className="loader-line" /></div>;
   return <MotionConfig reducedMotion="user"><div className="app-shell">
     <aside className="desktop-sidebar glass-panel">
 <Link to="/" className="brand"><img className="brand-glyph" src="/classflow-mark.webp" alt=""/><span>ClassFlow</span></Link>
@@ -233,7 +242,6 @@ function App() {
       <nav className="side-nav">
         <SideLink to="/dashboard" icon={<Home size={18}/>} label="Home"/>
         <SideLink to="/library" icon={<Library size={18}/>} label="Library"/>
-        <SideLink to="/downloads" icon={<ArrowDownToLine size={18}/>} label="In-App Downloads"/>
         <SideLink to="/copilot" icon={<Sparkles size={18}/>} label="AI Copilot"/>
         <SideLink to="/communities" icon={<Users size={18}/>} label="Communities"/>
         <SideLink to="/messages" icon={<MessageCircle size={18}/>} label="Messages"/>
@@ -242,6 +250,7 @@ function App() {
       <div className="sidebar-label">YOUR SPACE</div>
       <nav className="side-nav">
         <SideLink to="/upload" icon={<Plus size={18}/>} label="Share a resource"/>
+        <SideLink to="/downloads" icon={<ArrowDownToLine size={18}/>} label="In-App Downloads"/>
         <SideLink to="/profile" icon={<UserRound size={18}/>} label="Profile"/>
         {user?.role === 'admin' || user?.role === 'subadmin' ? <SideLink to="/admin" icon={<ShieldCheck size={18}/>} label="Admin studio"/> : null}
         <SideLink to="/settings" icon={<Settings size={18}/>} label="Settings"/>
@@ -369,23 +378,11 @@ function App() {
       <nav className="mobile-nav glass-panel" aria-label="Main navigation">
         <MobileLink to="/dashboard" icon={<Home size={19}/>} label="Home"/>
         <MobileLink to="/library" icon={<BookOpen size={19}/>} label="Library"/>
-        <MobileLink to="/downloads" icon={<ArrowDownToLine size={19}/>} label="Downloads"/>
+        <NavLink to="/upload" aria-label="Upload resource" className={({isActive}) => `mobile-add ${isActive?'active':''}`}><Plus size={22}/></NavLink>
         <MobileLink to="/messages" icon={<MessageCircle size={19}/>} label="Chat"/>
         <MobileLink to="/profile" icon={<UserRound size={19}/>} label="You"/>
       </nav>
       <ToastViewport/>
-      {hasUpdate && !showUpdateModal && (
-        <div className="update-floating-bar" onClick={() => setShowUpdateModal(true)}>
-          <div className="update-floating-left">
-            <span className="update-pulse-ring" />
-            <span><b>Update Ready:</b> ClassFlow {updateInfo?.version || APP_VERSION} is available</span>
-          </div>
-          <button className="button button-primary compact tiny" onClick={(e) => { e.stopPropagation(); void handleApplyUpdate(); }} disabled={isUpdating} style={{minHeight: '28px', fontSize: '11px', padding: '0 12px', background: '#52c41a', border: 'none', color: '#fff'}}>
-            <RefreshCw className={isUpdating ? "spin" : ""} size={12}/>
-            <span>{isUpdating ? 'Updating…' : 'Update Now'}</span>
-          </button>
-        </div>
-      )}
       {showUpdateModal && (
         <div className="update-modal-backdrop" onClick={() => setShowUpdateModal(false)}>
           <div className="update-dialog" onClick={(e) => e.stopPropagation()}>
@@ -848,7 +845,7 @@ function ResourceCard({resource:r,user}:{resource:Resource;user:Profile|null}) {
       {(r.resource_files?.length||0)>1&&<span className="resource-cover-count">+{r.resource_files!.length-1} more</span>}
     </div>
     <div className="resource-card-body"><h3>{r.title}</h3><p className="resource-description">{r.description||'A class resource shared with the campus community.'}</p><div className="resource-meta"><span>{r.profiles?.full_name||'Campus member'}</span><i/><span>{relativeTime(r.created_at)}</span></div>
-      <div className="resource-card-footer"><span className="file-count"><FileText size={13}/>{r.resource_files?.length??0} {r.resource_files?.length===1?'file':'files'}{r.page_count?` · ${r.page_count} pages`:''}</span><div className="resource-actions">{first&&<><button className="small-action" onClick={()=>void preview(first)} disabled={busy} aria-label="Preview resource"><Eye size={13}/>Preview</button>{downloadedInApp?<Link to="/downloads" className="small-action in-app-downloaded-pill" title="Saved in In-App Downloads"><Check size={12}/>In App</Link>:<button className="small-action" onClick={()=>void saveInApp(first)} disabled={savingInApp} title="Download inside app for offline reading"><ArrowDownToLine size={13}/>{savingInApp?'Saving…':'Download'}</button>}<button className="small-action" onClick={()=>void download(first)} disabled={busy} title="Save file to phone file manager"><FileText size={12}/>Files</button></>}{canManage&&<Link to={`/upload?edit=${r.id}`} className="small-action" aria-label="Edit resource"><Pencil size={14}/></Link>}{canDelete&&<button className="small-action danger-action" aria-label="Archive resource" onClick={()=>void removeResource()}><Trash2 size={13}/></button>}</div></div>
+      <div className="resource-card-footer"><span className="file-count"><FileText size={13}/>{r.resource_files?.length??0} {r.resource_files?.length===1?'file':'files'}{r.page_count?` · ${r.page_count} pages`:''}</span><div className="resource-actions">{first&&<><button className="small-action" onClick={()=>void preview(first)} disabled={busy} aria-label="Preview resource"><Eye size={13}/>Preview</button>{downloadedInApp?<Link to="/downloads" className="small-action in-app-downloaded-pill" title="Saved offline in In-App Downloads"><Check size={12}/>Saved</Link>:<button className="small-action" onClick={()=>void saveInApp(first)} disabled={savingInApp} title="Download inside app for offline reading"><ArrowDownToLine size={13}/>{savingInApp?'Saving…':'Download'}</button>}</>}{canManage&&<Link to={`/upload?edit=${r.id}`} className="small-action" aria-label="Edit resource"><Pencil size={14}/></Link>}{canDelete&&<button className="small-action danger-action" aria-label="Archive resource" onClick={()=>void removeResource()}><Trash2 size={13}/></button>}</div></div>
       {r.resource_files?.length?<details className="attached-files"><summary>{r.resource_files.length} attached {r.resource_files.length===1?'file':'files'} <ChevronDown size={12}/></summary><div>{r.resource_files.map(f=><div key={f.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'8px',padding:'6px 0',borderBottom:'1px solid #f0e9dc'}}><div style={{display:'flex',alignItems:'center',gap:'8px',minWidth:0}}><span className="attached-file-icon">{iconFor(f.original_name)}</span><span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f.original_name}</span><small>{prettySize(f.size_bytes)}</small></div><div style={{display:'flex',gap:'6px'}}><button className="small-action" onClick={()=>void saveInApp(f)} disabled={savingInApp} title="Save into app"><ArrowDownToLine size={12}/>In App</button><button className="small-action" onClick={()=>void download(f)} disabled={busy} title="Download to device"><FileText size={12}/>Device</button></div></div>)}</div></details>:null}
     </div>
   </motion.article>;
