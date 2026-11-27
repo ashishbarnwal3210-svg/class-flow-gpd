@@ -24,7 +24,7 @@ type Resource = {
 };
 type Profile = { id: string; full_name: string; username: string; classflow_id: string; role?: string; permissions?: string[]; avatar_url?: string | null; bio?: string | null };
 const categories = ['Notes', 'Assignment', 'Practical', 'Lab Manual', 'PYQ', 'Notice', 'Syllabus', 'Question Bank', 'Other'];
-const APP_VERSION = '1.2.2';
+const APP_VERSION = '1.2.3';
 const relativeTime = (d: string) => { const delta = Date.now() - new Date(d).getTime(); if (delta < 60_000) return 'Just now'; if (delta < 3_600_000) return `${Math.floor(delta / 60_000)}m ago`; if (delta < 86_400_000) return `${Math.floor(delta / 3_600_000)}h ago`; return new Date(d).toLocaleDateString(); };
 const prettySize = (n: number) => n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
 const fileKey = (f:File) => `${f.name}:${f.size}:${f.lastModified}`;
@@ -82,11 +82,14 @@ function App() {
       const res = await fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
-        if (data.version && data.version !== APP_VERSION) {
+        const applied = typeof localStorage !== 'undefined' ? localStorage.getItem('classflow_applied_version') : null;
+        if (data.version && data.version !== APP_VERSION && data.version !== applied) {
           setUpdateInfo(data);
           setHasUpdate(true);
           setShowUpdateModal(true);
           return;
+        } else {
+          setHasUpdate(false);
         }
       }
 
@@ -103,6 +106,12 @@ function App() {
   const handleApplyUpdate = async () => {
     setIsUpdating(true);
     try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('classflow_applied_version', updateInfo?.version || APP_VERSION);
+      }
+      setHasUpdate(false);
+      setShowUpdateModal(false);
+
       if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
         const regs = await navigator.serviceWorker.getRegistrations();
         for (const reg of regs) {
@@ -111,14 +120,10 @@ function App() {
           }
         }
       }
-      if (typeof window !== 'undefined' && 'caches' in window) {
-        const names = await caches.keys();
-        await Promise.all(names.map(name => caches.delete(name)));
-      }
-      toast('Updating ClassFlow to the latest version…');
+      toast('Updated! Loading the newest version…');
       setTimeout(() => {
         window.location.reload();
-      }, 500);
+      }, 400);
     } catch {
       window.location.reload();
     }
@@ -255,10 +260,12 @@ function App() {
         <div className="mobile-brand"><Link to="/" className="brand"><img className="brand-glyph" src="/classflow-mark.webp" alt=""/><span>ClassFlow</span></Link></div>
         <div className="breadcrumbs"><span>ClassFlow</span><span className="crumb-slash">/</span><b>{pageTitle}</b></div>
         <div className="top-actions">
-          <button className="update-header-btn" onClick={() => setShowUpdateModal(true)} title="1-Tap App Update">
-            <Sparkles size={13}/>
-            <span>Update App</span>
-          </button>
+          {hasUpdate && (
+            <button className="update-header-btn" onClick={() => setShowUpdateModal(true)} title="1-Tap App Update">
+              <Sparkles size={13}/>
+              <span>Update Ready</span>
+            </button>
+          )}
           <NavLink to="/downloads" className="icon-button" aria-label="In-App Downloads" title="In-App Downloads">
             <ArrowDownToLine size={17}/>
           </NavLink>
@@ -380,25 +387,28 @@ function App() {
         </div>
       )}
       {showUpdateModal && (
-        <div className="profile-post-backdrop" onClick={() => setShowUpdateModal(false)}>
-          <div className="install-dialog update-dialog" onClick={(e) => e.stopPropagation()}>
-            <div className="install-dialog-head">
+        <div className="update-modal-backdrop" onClick={() => setShowUpdateModal(false)}>
+          <div className="update-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="update-dialog-head">
               <div className="update-dialog-icon">
-                <Sparkles size={22}/>
+                <Sparkles size={24}/>
               </div>
-              <div>
-                <h3>App Update Available</h3>
-                <p>ClassFlow {updateInfo?.version || APP_VERSION} is ready</p>
+              <div style={{flex: 1}}>
+                <h3>ClassFlow Updated</h3>
+                <span className="update-version-tag">
+                  <span className="offline-pulse-dot" style={{width: '6px', height: '6px'}}/>
+                  <span>Version {updateInfo?.version || APP_VERSION}</span>
+                </span>
               </div>
-              <button className="icon-button tiny" onClick={() => setShowUpdateModal(false)}><X size={15}/></button>
+              <button className="icon-button tiny" onClick={() => setShowUpdateModal(false)}><X size={16}/></button>
             </div>
             <div className="update-dialog-body">
-              <p className="update-desc">{updateInfo?.title || 'New offline study mode, mascot screen, and performance improvements are ready for your device.'}</p>
+              <p className="update-desc">{updateInfo?.title || 'A fresh update is ready with offline downloads, guaranteed mascot offline screen, and faster performance.'}</p>
               <ul className="update-highlights">
                 {(updateInfo?.highlights || [
-                  'Offline Study Mode with cute mascot illustration',
-                  'Cached campus notes available without internet',
-                  'Instant reload & faster PWA performance'
+                  'In-app downloads: Read notes offline like Hotstar',
+                  'Cute mascot offline screen when internet drops',
+                  'Superfast instant page loading & zero ERR_FAILED'
                 ]).map((hl: string, idx: number) => (
                   <li key={idx}><Check size={14}/><span>{hl}</span></li>
                 ))}
@@ -407,10 +417,10 @@ function App() {
             <div className="update-dialog-actions">
               <button className="button button-primary" onClick={handleApplyUpdate} disabled={isUpdating}>
                 <RefreshCw className={isUpdating ? "spin" : ""} size={15}/>
-                <span>{isUpdating ? "Applying Update…" : "Update Now"}</span>
+                <span>{isUpdating ? "Updating…" : "Update Now (1-Tap)"}</span>
               </button>
               <button className="button button-secondary" onClick={() => setShowUpdateModal(false)}>
-                Later
+                Remind Later
               </button>
             </div>
           </div>

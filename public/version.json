@@ -1,11 +1,11 @@
 {
-  "version": "1.2.2",
-  "buildTime": 1795591400000,
-  "title": "In-App Downloads & Instant Header Update",
+  "version": "1.2.3",
+  "buildTime": 1795765000000,
+  "title": "In-App Downloads & Guaranteed Offline Engine",
   "highlights": [
     "Hotstar-style in-app downloads saved directly on device",
-    "Built-in offline PDF & document viewer without internet",
-    "1-Tap direct Update App button right in the topbar header",
-    "Full cute mascot screen when connection drops"
+    "Guaranteed cute mascot offline screen (no ERR_FAILED)",
+    "Centered 1-tap update popup with smooth animation",
+    "Auto-hides update button once updated"
   ]
 }
