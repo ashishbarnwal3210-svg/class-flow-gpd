@@ -14,6 +14,7 @@ import { backendConfigured, requireBackend, supabase } from './lib/supabase';
 import { resourceMetadataSchema, resourceMimeType, validateResourceFile } from './lib/resource-validation';
 import { useUIStore } from './lib/ui-store';
 import { uploadPrivateResourceFile } from './lib/upload';
+import { getOfflineDownloads, deleteOfflineDownload, isResourceDownloaded, downloadResourceLocally, type OfflineDownload } from './lib/offline-storage';
 
 type Resource = {
   id: string; title: string; description: string | null; category: string; assignment_type: string | null;
@@ -23,7 +24,7 @@ type Resource = {
 };
 type Profile = { id: string; full_name: string; username: string; classflow_id: string; role?: string; permissions?: string[]; avatar_url?: string | null; bio?: string | null };
 const categories = ['Notes', 'Assignment', 'Practical', 'Lab Manual', 'PYQ', 'Notice', 'Syllabus', 'Question Bank', 'Other'];
-const APP_VERSION = '1.2.1';
+const APP_VERSION = '1.2.2';
 const relativeTime = (d: string) => { const delta = Date.now() - new Date(d).getTime(); if (delta < 60_000) return 'Just now'; if (delta < 3_600_000) return `${Math.floor(delta / 60_000)}m ago`; if (delta < 86_400_000) return `${Math.floor(delta / 3_600_000)}h ago`; return new Date(d).toLocaleDateString(); };
 const prettySize = (n: number) => n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
 const fileKey = (f:File) => `${f.name}:${f.size}:${f.lastModified}`;
@@ -217,7 +218,7 @@ function App() {
     const { data: permissionRows } = await supabase.from('user_permissions').select('permission').eq('user_id',id);
     if (data) setUser({ ...data, role: roleData?.role ?? 'student', permissions:(permissionRows??[]).map((row:any)=>row.permission) });
   }
-  const pageTitle = useMemo(() => ({ '/dashboard':'Dashboard','/library':'Resource library','/copilot':'ClassFlow Copilot','/upload':'Share a resource','/communities':'Campus network','/messages':'Messages','/profile':'Your profile','/admin':'Admin studio','/settings':'Settings' } as Record<string,string>)[location.pathname] ?? 'Welcome to ClassFlow', [location.pathname]);
+  const pageTitle = useMemo(() => ({ '/dashboard':'Dashboard','/library':'Resource library','/downloads':'In-App Downloads','/copilot':'ClassFlow Copilot','/upload':'Share a resource','/communities':'Campus network','/messages':'Messages','/profile':'Your profile','/admin':'Admin studio','/settings':'Settings','/offline':'Offline study' } as Record<string,string>)[location.pathname] ?? 'Welcome to ClassFlow', [location.pathname]);
   const signOut = async () => { if (supabase) await supabase.auth.signOut(); setMenuOpen(false); };
   if (authLoading) return <div className="boot-screen"><img className="brand-mark" src="/classflow-mark.webp" alt="ClassFlow"/><span className="boot-word">ClassFlow</span><div className="loader-line" /></div>;
   return <MotionConfig reducedMotion="user"><div className="app-shell">
@@ -227,6 +228,7 @@ function App() {
       <nav className="side-nav">
         <SideLink to="/dashboard" icon={<Home size={18}/>} label="Home"/>
         <SideLink to="/library" icon={<Library size={18}/>} label="Library"/>
+        <SideLink to="/downloads" icon={<ArrowDownToLine size={18}/>} label="In-App Downloads"/>
         <SideLink to="/copilot" icon={<Sparkles size={18}/>} label="AI Copilot"/>
         <SideLink to="/communities" icon={<Users size={18}/>} label="Communities"/>
         <SideLink to="/messages" icon={<MessageCircle size={18}/>} label="Messages"/>
@@ -253,6 +255,13 @@ function App() {
         <div className="mobile-brand"><Link to="/" className="brand"><img className="brand-glyph" src="/classflow-mark.webp" alt=""/><span>ClassFlow</span></Link></div>
         <div className="breadcrumbs"><span>ClassFlow</span><span className="crumb-slash">/</span><b>{pageTitle}</b></div>
         <div className="top-actions">
+          <button className="update-header-btn" onClick={() => setShowUpdateModal(true)} title="1-Tap App Update">
+            <Sparkles size={13}/>
+            <span>Update App</span>
+          </button>
+          <NavLink to="/downloads" className="icon-button" aria-label="In-App Downloads" title="In-App Downloads">
+            <ArrowDownToLine size={17}/>
+          </NavLink>
           {!isStandalone && (
             <button className="install-header-btn" onClick={handleInstallApp} title="Install ClassFlow App on your phone">
               <ArrowDownToLine size={15}/>
@@ -266,16 +275,52 @@ function App() {
           </div>
         </div>
       </header>
-      {!isOnline && (
+      {!isOnline && location.pathname === '/downloads' && (
         <div className="offline-top-strip">
           <div className="offline-top-strip-left">
             <span className="offline-pulse-dot" />
-            <span><b>Offline Study Mode</b> — You can still read previously opened & cached notes.</span>
+            <span><b>Offline Study:</b> Reading notes from device storage. Zero data needed.</span>
           </div>
           <button className="button button-secondary compact tiny" onClick={handleRetryConnection} disabled={checkingConnection} style={{fontSize: '10px', minHeight: '26px', padding: '0 9px', gap: '4px'}}>
             <RefreshCw className={checkingConnection ? "spin" : ""} size={12}/>
             <span>{checkingConnection ? 'Checking…' : 'Retry'}</span>
           </button>
+        </div>
+      )}
+      {!isOnline && location.pathname !== '/downloads' && (
+        <div className="offline-full-overlay glass-panel">
+          <svg className="cute-offline-mascot" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="80" cy="80" r="64" fill="#E8E2D5" />
+            <ellipse cx="80" cy="85" rx="42" ry="46" fill="#899F8B" />
+            <ellipse cx="80" cy="88" rx="34" ry="36" fill="#F4F0E7" />
+            <path d="M64 82C67 85 71 85 74 82" stroke="#4D443A" stroke-width="3" stroke-linecap="round" />
+            <path d="M86 82C89 85 93 85 96 82" stroke="#4D443A" stroke-width="3" stroke-linecap="round" />
+            <polygon points="80,87 76,92 84,92" fill="#E2A35C" />
+            <circle cx="62" cy="88" r="4" fill="#F4B0A1" opacity="0.8" />
+            <circle cx="98" cy="88" r="4" fill="#F4B0A1" opacity="0.8" />
+            <polygon points="80,45 106,55 80,63 54,55" fill="#4D443A" />
+            <rect x="70" y="58" width="20" height="9" rx="3" fill="#4D443A" />
+            <path d="M106 55V70" stroke="#E2A35C" stroke-width="2" stroke-linecap="round" />
+            <circle cx="106" cy="71" r="2.5" fill="#E2A35C" />
+            <path d="M116 38L124 38L116 46L124 46" stroke="#899F8B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M125 24L131 24L125 30L131 30" stroke="#899F8B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+            <circle cx="42" cy="48" r="14" fill="#FFFFFF" stroke="#78674C20" stroke-width="1.5" />
+            <path d="M35 44C39 40 45 40 49 44" stroke="#A89F91" stroke-width="2" stroke-linecap="round" />
+            <path d="M38 48C40 46 44 46 46 48" stroke="#A89F91" stroke-width="2" stroke-linecap="round" />
+            <line x1="34" y1="56" x2="50" y2="40" stroke="#D36B5B" stroke-width="2.5" stroke-linecap="round" />
+          </svg>
+          <h2>You're Currently Offline</h2>
+          <p>No internet connection right now. Your downloaded campus notes are saved directly inside ClassFlow — read and study anytime without internet!</p>
+          <div className="offline-overlay-actions">
+            <Link to="/downloads" className="button button-primary">
+              <ArrowDownToLine size={16} />
+              <span>Open In-App Downloads (Read Offline)</span>
+            </Link>
+            <button className="button button-secondary" onClick={handleRetryConnection} disabled={checkingConnection}>
+              <RefreshCw className={checkingConnection ? "spin" : ""} size={15} />
+              <span>{checkingConnection ? "Checking connection…" : "Retry Connection"}</span>
+            </button>
+          </div>
         </div>
       )}
       {!isStandalone && showInstallBanner && (
@@ -303,6 +348,7 @@ function App() {
         <Route path="/auth" element={<AuthPage onSuccess={async () => { const { data } = await supabase?.auth.getUser() ?? { data: { user: null } }; if (data.user) await loadProfile(data.user.id); }}/>} />
         <Route path="/dashboard" element={<Dashboard user={user}/>}/>
         <Route path="/library" element={<LibraryPage user={user}/>}/>
+        <Route path="/downloads" element={<DownloadsPage />}/>
         <Route path="/copilot" element={<CopilotPage user={user}/>}/>
         <Route path="/upload" element={<UploadPage user={user}/>}/>
         <Route path="/communities" element={<Communities user={user}/>}/>
@@ -316,7 +362,7 @@ function App() {
       <nav className="mobile-nav glass-panel" aria-label="Main navigation">
         <MobileLink to="/dashboard" icon={<Home size={19}/>} label="Home"/>
         <MobileLink to="/library" icon={<BookOpen size={19}/>} label="Library"/>
-        <NavLink to="/upload" aria-label="Upload resource" className={({isActive}) => `mobile-add ${isActive?'active':''}`}><Plus size={22}/></NavLink>
+        <MobileLink to="/downloads" icon={<ArrowDownToLine size={19}/>} label="Downloads"/>
         <MobileLink to="/messages" icon={<MessageCircle size={19}/>} label="Chat"/>
         <MobileLink to="/profile" icon={<UserRound size={19}/>} label="You"/>
       </nav>
@@ -449,14 +495,232 @@ function OfflineCard({ onRetry, isChecking }: { onRetry?: () => void; isChecking
       <h2>You're in Offline Study Mode</h2>
       <p>No internet connection right now. Your downloaded notes and cached campus materials are still available to read offline!</p>
       <div className="offline-screen-actions">
-        <button className="button button-primary" onClick={onRetry || (() => window.location.reload())} disabled={isChecking}>
+        <button className="button button-primary" onClick={() => navigate('/downloads')}>
+          <ArrowDownToLine size={15} />
+          <span>Open In-App Downloads (Read Offline)</span>
+        </button>
+        <button className="button button-secondary" onClick={onRetry || (() => window.location.reload())} disabled={isChecking}>
           <RefreshCw className={isChecking ? "spin" : ""} size={15} />
           <span>{isChecking ? "Checking connection…" : "Retry Connection"}</span>
         </button>
-        <button className="button button-secondary" onClick={() => navigate('/library')}>
-          <BookOpen size={15} />
-          <span>Go to Saved & Offline Notes</span>
-        </button>
+      </div>
+    </div>
+  );
+}
+
+function DownloadsPage() {
+  const [downloads, setDownloads] = useState<OfflineDownload[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeItem, setActiveItem] = useState<OfflineDownload | null>(null);
+
+  const loadDownloads = async () => {
+    setLoading(true);
+    try {
+      const items = await getOfflineDownloads();
+      setDownloads(items);
+    } catch {
+      setDownloads([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadDownloads();
+  }, []);
+
+  const handleDelete = async (id: string, name: string) => {
+    if (!window.confirm(`Delete "${name}" from In-App Downloads?`)) return;
+    await deleteOfflineDownload(id);
+    toast('Removed from In-App Downloads.');
+    void loadDownloads();
+  };
+
+  const totalBytes = useMemo(() => {
+    return downloads.reduce((sum, item) => sum + (item.fileSize || item.blob?.size || 0), 0);
+  }, [downloads]);
+
+  return (
+    <>
+      <PageHeading
+        eyebrow="OFFLINE STUDY STORAGE"
+        title="In-App Downloads"
+        description="Notes downloaded locally inside ClassFlow — read and study anytime without internet."
+        action={
+          <Link to="/library" className="button button-secondary compact">
+            <BookOpen size={16}/> Browse Library
+          </Link>
+        }
+      />
+
+      <div className="downloads-storage-bar glass-panel">
+        <span className="downloads-storage-pill">
+          <ArrowDownToLine size={15}/>
+          <span>{downloads.length} {downloads.length === 1 ? 'note' : 'notes'} saved offline</span>
+        </span>
+        <span>Storage used: <b>{prettySize(totalBytes)}</b></span>
+      </div>
+
+      {loading ? (
+        <div className="resource-grid">
+          {[1,2].map(i => <div className="skeleton-card library-skeleton" key={i}/>)}
+        </div>
+      ) : downloads.length ? (
+        <div className="downloads-grid">
+          {downloads.map(item => (
+            <div className="download-card glass-panel" key={item.id}>
+              <div>
+                <div className="download-card-head">
+                  <div className="download-file-icon">
+                    <FileText size={20}/>
+                  </div>
+                  <div className="download-card-meta">
+                    <h3>{item.title}</h3>
+                    <p>{item.subjectName || item.category || 'Class Material'} · {item.authorName || 'Campus upload'}</p>
+                  </div>
+                </div>
+                <div className="download-badge-row">
+                  <span className="in-app-downloaded-pill"><Check size={12}/> Offline Ready</span>
+                  <span className="download-badge-chip">{prettySize(item.fileSize || item.blob?.size || 0)}</span>
+                  <span>{relativeTime(new Date(item.downloadedAt).toISOString())}</span>
+                </div>
+              </div>
+              <div className="download-card-actions">
+                <button className="button button-primary compact" onClick={() => setActiveItem(item)}>
+                  <BookOpen size={13}/> Read Offline
+                </button>
+                <button
+                  className="icon-button tiny"
+                  title="Export to phone files"
+                  onClick={() => {
+                    const url = URL.createObjectURL(item.blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = item.fileName;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    toast('Saved copy to phone file manager.');
+                  }}
+                >
+                  <ArrowDownToLine size={14}/>
+                </button>
+                <button
+                  className="icon-button tiny"
+                  title="Delete download"
+                  onClick={() => void handleDelete(item.id, item.title)}
+                >
+                  <Trash2 size={14}/>
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <DataState
+          title="No in-app downloads yet"
+          text="Download notes from the Resource Library to read them anytime offline — just like Hotstar or YouTube!"
+          icon={<ArrowDownToLine size={24}/>}
+          action={
+            <Link to="/library" className="button button-primary compact">
+              <BookOpen size={14}/> Go to Resource Library
+            </Link>
+          }
+        />
+      )}
+
+      {activeItem && (
+        <InAppOfflineViewer item={activeItem} onClose={() => setActiveItem(null)}/>
+      )}
+    </>
+  );
+}
+
+function InAppOfflineViewer({ item, onClose }: { item: OfflineDownload; onClose: () => void }) {
+  const [blobUrl, setBlobUrl] = useState<string>('');
+  const [isPdf, setIsPdf] = useState(false);
+  const [isImage, setIsImage] = useState(false);
+  const [textContent, setTextContent] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!item.blob) return;
+    const url = URL.createObjectURL(item.blob);
+    setBlobUrl(url);
+
+    const type = (item.mimeType || '').toLowerCase();
+    const name = (item.fileName || '').toLowerCase();
+    if (type.includes('pdf') || name.endsWith('.pdf')) {
+      setIsPdf(true);
+    } else if (type.startsWith('image/') || /\.(png|jpe?g|webp|gif)$/i.test(name)) {
+      setIsImage(true);
+    } else if (type.startsWith('text/') || /\.(txt|md|csv|json)$/i.test(name)) {
+      const reader = new FileReader();
+      reader.onload = () => setTextContent(String(reader.result || ''));
+      reader.readAsText(item.blob);
+    }
+
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [item]);
+
+  return (
+    <div className="in-app-viewer-overlay" onClick={onClose}>
+      <div className="in-app-viewer-modal" onClick={e => e.stopPropagation()}>
+        <div className="in-app-viewer-header">
+          <div className="in-app-viewer-header-left">
+            <button className="icon-button tiny" onClick={onClose}><ArrowLeft size={16}/></button>
+            <div>
+              <h3>{item.title}</h3>
+              <small style={{fontSize: '11px', color: '#796f64'}}>{item.fileName} ({prettySize(item.fileSize)})</small>
+            </div>
+          </div>
+          <button className="icon-button tiny" onClick={onClose}><X size={16}/></button>
+        </div>
+
+        <div className="in-app-viewer-body">
+          {isPdf ? (
+            <iframe src={blobUrl} title={item.fileName} />
+          ) : isImage ? (
+            <img src={blobUrl} alt={item.fileName} />
+          ) : textContent !== null ? (
+            <pre>{textContent}</pre>
+          ) : (
+            <div style={{textAlign: 'center', padding: '30px'}}>
+              <FileText size={48} style={{margin: '0 auto 12px', color: '#718c75'}}/>
+              <h4>{item.fileName}</h4>
+              <p style={{fontSize: '12px', color: '#796f64', marginTop: '6px'}}>This file is downloaded offline inside ClassFlow.</p>
+              <button
+                className="button button-primary compact"
+                style={{marginTop: '16px'}}
+                onClick={() => {
+                  const a = document.createElement('a');
+                  a.href = blobUrl;
+                  a.download = item.fileName;
+                  a.click();
+                }}
+              >
+                <ArrowDownToLine size={14}/> Open with Phone App
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="in-app-viewer-footer">
+          <span><b>In-App Offline Reader:</b> Stored locally on device</span>
+          <button
+            className="button button-secondary compact"
+            style={{minHeight: '28px', fontSize: '11px'}}
+            onClick={() => {
+              const a = document.createElement('a');
+              a.href = blobUrl;
+              a.download = item.fileName;
+              a.click();
+              toast('Saved copy to phone file manager.');
+            }}
+          >
+            <ArrowDownToLine size={13}/> Save to Phone Files
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -531,7 +795,7 @@ function LibraryPage({user}:{user:Profile|null}) {
   const displayResources = (query.data && query.data.length > 0) ? query.data : ((isOffline || query.isError) ? cachedResources : []);
   const isUsingCache = !query.data?.length && Boolean(displayResources.length);
 
-  return <><PageHeading eyebrow="SHARED KNOWLEDGE" title="Resource library" description="Useful material, thoughtfully shared by your campus." action={<Link to="/upload" className="button button-primary compact"><Plus size={16}/> Share resource</Link>}/>
+  return <><PageHeading eyebrow="SHARED KNOWLEDGE" title="Resource library" description="Useful material, thoughtfully shared by your campus." action={<div style={{display:'flex',gap:'8px'}}><Link to="/downloads" className="button button-secondary compact"><ArrowDownToLine size={15}/> In-App Downloads 📥</Link><Link to="/upload" className="button button-primary compact"><Plus size={16}/> Share resource</Link></div>}/>
     <div className="library-search-row"><div className="library-search"><Search size={17}/><input aria-label="Search resources" placeholder="Search notes, subjects, topics..." value={q} onChange={e=>setQ(e.target.value)}/>{q&&<button className="clear-search" onClick={()=>setQ('')}><X size={15}/></button>}</div><button className={`filter-button ${filterOpen?'pressed':''}`} onClick={()=>setFilterOpen(!filterOpen)}><Filter size={16}/> Filters <ChevronDown size={14}/></button><select className="sort-select" value={sort} onChange={e=>setSort(e.target.value)} aria-label="Sort resources"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="downloads">Most downloaded</option><option value="title">Alphabetical</option></select></div>
     {filterOpen&&<div className="filter-panel glass-panel"><span className="filter-label">CATEGORY</span><button className={`filter-chip ${category===''?'active':''}`} onClick={()=>setCategory('')}>All resources</button>{categories.map(c=><button key={c} className={`filter-chip ${category===c?'active':''}`} onClick={()=>setCategory(category===c?'':c)}>{c}</button>)}<span className="filter-label filter-break">ACADEMIC</span><select className="filter-select" value={branchFilter} onChange={e=>{setBranchFilter(e.target.value);setSubjectFilter('');}}><option value="">All branches</option>{filterBranches.data?.map((b:any)=><option key={b.id} value={b.id}>{b.name}</option>)}</select><select className="filter-select" value={semesterFilter} onChange={e=>{setSemesterFilter(e.target.value);setSubjectFilter('');}}><option value="">All semesters</option>{filterSemesters.data?.map((s:any)=><option key={s.id} value={s.id}>{s.name}</option>)}</select><select className="filter-select" value={subjectFilter} onChange={e=>setSubjectFilter(e.target.value)}><option value="">All subjects</option>{filterSubjects.data?.map((s:any)=><option key={s.id} value={s.id}>{s.name}</option>)}</select></div>}
     <div className="library-subhead"><span>{displayResources.length} {displayResources.length===1?'resource':'resources'} {isUsingCache&&<span className="offline-badge">Offline Cached</span>}</span><span>Shared knowledge, kept close</span></div>
@@ -552,14 +816,16 @@ function LibraryPage({user}:{user:Profile|null}) {
   </>;
 }
 function ResourceCard({resource:r,user}:{resource:Resource;user:Profile|null}) {
-  const [busy,setBusy]=useState(false);const [saved,setSaved]=useState(false);const [coverUrl,setCoverUrl]=useState<string|null>(null);const queryClient=useQueryClient();const own=r.profiles?.classflow_id===user?.classflow_id;const canManage=own||user?.role==='admin'||Boolean(user?.permissions?.some(p=>['resources.manage','resources.edit'].includes(p)));const canDelete=own||user?.role==='admin'||Boolean(user?.permissions?.some(p=>['resources.manage','resources.delete'].includes(p)));
+  const [busy,setBusy]=useState(false);const [saved,setSaved]=useState(false);const [coverUrl,setCoverUrl]=useState<string|null>(null);const [downloadedInApp,setDownloadedInApp]=useState(false);const [savingInApp,setSavingInApp]=useState(false);const queryClient=useQueryClient();const own=r.profiles?.classflow_id===user?.classflow_id;const canManage=own||user?.role==='admin'||Boolean(user?.permissions?.some(p=>['resources.manage','resources.edit'].includes(p)));const canDelete=own||user?.role==='admin'||Boolean(user?.permissions?.some(p=>['resources.manage','resources.delete'].includes(p)));
   useEffect(()=>{if(!supabase||!user)return;void requireBackend().from('bookmarks').select('resource_id').eq('resource_id',r.id).eq('user_id',user.id).maybeSingle().then(({data})=>setSaved(Boolean(data)));},[r.id,user?.id]);
+  useEffect(()=>{void isResourceDownloaded(r.id).then(res=>setDownloadedInApp(res));},[r.id]);
   const isImageFile=(file:any)=>file?.mime_type?.toLowerCase().startsWith('image/')||/\.(png|jpe?g|gif|webp)$/i.test(file?.original_name||'');
   const coverFile=r.resource_files?.find(isImageFile)||r.resource_files?.[0];
   useEffect(()=>{let cancelled=false;if(!coverFile||!isImageFile(coverFile)||!supabase||!user){setCoverUrl(null);return;}void requireBackend().storage.from('classflow-resources').createSignedUrl(coverFile.storage_path,600).then(({data,error})=>{if(!cancelled)setCoverUrl(error?null:data?.signedUrl||null);}).catch(()=>{if(!cancelled)setCoverUrl(null);});return()=>{cancelled=true;};},[coverFile?.storage_path,user?.id]);
   const iconFor=(f:string)=>{const ext=f.split('.').pop()?.toLowerCase();return ext==='zip'?<FileArchive size={17}/>:['png','jpg','jpeg','gif','webp'].includes(ext||'')?<FileImage size={17}/>:<FileText size={17}/>;};
   async function signedUrl(file:{original_name:string;storage_path:string},downloadFile:boolean){if(!supabase)return null;const {data,error}=await requireBackend().storage.from('classflow-resources').createSignedUrl(file.storage_path,60,downloadFile?{download:file.original_name}:{});if(error)throw error;return data.signedUrl;}
   async function download(file:{original_name:string;storage_path:string}){setBusy(true);try{const url=await signedUrl(file,true);if(url){if(user)await requireBackend().from('resource_downloads').insert({resource_id:r.id,user_id:user.id});const a=document.createElement('a');a.href=url;a.download=file.original_name;a.rel='noreferrer';a.click();}}catch(e){toast(e instanceof Error?e.message:'Download could not be prepared.');}finally{setBusy(false);}}
+  async function saveInApp(file:{id?:string;original_name:string;storage_path:string;mime_type?:string;size_bytes?:number}){setSavingInApp(true);try{const url=await signedUrl(file,true);if(!url)throw new Error('Link could not be generated.');if(user)await requireBackend().from('resource_downloads').insert({resource_id:r.id,user_id:user.id});await downloadResourceLocally(r,{id:file.id||file.storage_path,original_name:file.original_name,mime_type:file.mime_type||'application/pdf',size_bytes:file.size_bytes||0},url);setDownloadedInApp(true);toast(`"${file.original_name}" saved to In-App Downloads! Read anytime offline.`);}catch(e){toast(e instanceof Error?e.message:'In-app download failed.');}finally{setSavingInApp(false);}}
   async function preview(file:{original_name:string;storage_path:string}){const previewWindow=window.open('about:blank','_blank');if(previewWindow)previewWindow.opener=null;setBusy(true);try{const url=await signedUrl(file,false);if(url){if(previewWindow)previewWindow.location.href=url;else window.location.assign(url);}else previewWindow?.close();}catch(e){previewWindow?.close();toast(e instanceof Error?e.message:'Preview could not be prepared.');}finally{setBusy(false);}}
   async function toggleBookmark(){if(!supabase||!user){toast('Sign in to save resources to your collection.');return;}const db=requireBackend();const response=saved?await db.from('bookmarks').delete().eq('resource_id',r.id).eq('user_id',user.id):await db.from('bookmarks').insert({resource_id:r.id,user_id:user.id});if(response.error){toast(response.error.message);return;}setSaved(!saved);await queryClient.invalidateQueries({queryKey:['dashboard-resources']});toast(saved?'Removed from saved resources.':'Saved to your collection.');}
   async function removeResource(){if(!supabase||!user||!canDelete||!window.confirm('Move this resource to the campus archive? You can ask an administrator to restore it.'))return;const {error}=await requireBackend().from('resources').update({deleted_at:new Date().toISOString()}).eq('id',r.id);if(error){toast(error.message);return;}await queryClient.invalidateQueries({queryKey:['resources']});toast('Resource archived.');}
@@ -572,8 +838,8 @@ function ResourceCard({resource:r,user}:{resource:Resource;user:Profile|null}) {
       {(r.resource_files?.length||0)>1&&<span className="resource-cover-count">+{r.resource_files!.length-1} more</span>}
     </div>
     <div className="resource-card-body"><h3>{r.title}</h3><p className="resource-description">{r.description||'A class resource shared with the campus community.'}</p><div className="resource-meta"><span>{r.profiles?.full_name||'Campus member'}</span><i/><span>{relativeTime(r.created_at)}</span></div>
-      <div className="resource-card-footer"><span className="file-count"><FileText size={13}/>{r.resource_files?.length??0} {r.resource_files?.length===1?'file':'files'}{r.page_count?` · ${r.page_count} pages`:''}</span><div className="resource-actions">{first&&<><button className="small-action" onClick={()=>void preview(first)} disabled={busy} aria-label="Preview resource"><Eye size={13}/>Preview</button><button className="small-action" onClick={()=>void download(first)} disabled={busy} aria-label="Download resource"><ArrowDownToLine size={13}/>{busy?'…':'Download'}</button></>}{canManage&&<Link to={`/upload?edit=${r.id}`} className="small-action" aria-label="Edit resource"><Pencil size={14}/></Link>}{canDelete&&<button className="small-action danger-action" aria-label="Archive resource" onClick={()=>void removeResource()}><Trash2 size={13}/></button>}</div></div>
-      {r.resource_files?.length?<details className="attached-files"><summary>{r.resource_files.length} attached {r.resource_files.length===1?'file':'files'} <ChevronDown size={12}/></summary><div>{r.resource_files.map(f=><button key={f.id} onClick={()=>void download(f)}><span className="attached-file-icon">{iconFor(f.original_name)}</span><span>{f.original_name}</span><small>{prettySize(f.size_bytes)}</small><ArrowDownToLine size={13}/></button>)}</div></details>:null}
+      <div className="resource-card-footer"><span className="file-count"><FileText size={13}/>{r.resource_files?.length??0} {r.resource_files?.length===1?'file':'files'}{r.page_count?` · ${r.page_count} pages`:''}</span><div className="resource-actions">{first&&<><button className="small-action" onClick={()=>void preview(first)} disabled={busy} aria-label="Preview resource"><Eye size={13}/>Preview</button>{downloadedInApp?<Link to="/downloads" className="small-action in-app-downloaded-pill" title="Saved in In-App Downloads"><Check size={12}/>In App</Link>:<button className="small-action" onClick={()=>void saveInApp(first)} disabled={savingInApp} title="Download inside app for offline reading"><ArrowDownToLine size={13}/>{savingInApp?'Saving…':'Download'}</button>}<button className="small-action" onClick={()=>void download(first)} disabled={busy} title="Save file to phone file manager"><FileText size={12}/>Files</button></>}{canManage&&<Link to={`/upload?edit=${r.id}`} className="small-action" aria-label="Edit resource"><Pencil size={14}/></Link>}{canDelete&&<button className="small-action danger-action" aria-label="Archive resource" onClick={()=>void removeResource()}><Trash2 size={13}/></button>}</div></div>
+      {r.resource_files?.length?<details className="attached-files"><summary>{r.resource_files.length} attached {r.resource_files.length===1?'file':'files'} <ChevronDown size={12}/></summary><div>{r.resource_files.map(f=><div key={f.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'8px',padding:'6px 0',borderBottom:'1px solid #f0e9dc'}}><div style={{display:'flex',alignItems:'center',gap:'8px',minWidth:0}}><span className="attached-file-icon">{iconFor(f.original_name)}</span><span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f.original_name}</span><small>{prettySize(f.size_bytes)}</small></div><div style={{display:'flex',gap:'6px'}}><button className="small-action" onClick={()=>void saveInApp(f)} disabled={savingInApp} title="Save into app"><ArrowDownToLine size={12}/>In App</button><button className="small-action" onClick={()=>void download(f)} disabled={busy} title="Download to device"><FileText size={12}/>Device</button></div></div>)}</div></details>:null}
     </div>
   </motion.article>;
 }

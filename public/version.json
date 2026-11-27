@@ -1,10 +1,11 @@
 {
-  "version": "1.2.1",
-  "buildTime": 1795590700000,
-  "title": "Offline Study Mode & Cute Mascot Update",
+  "version": "1.2.2",
+  "buildTime": 1795591400000,
+  "title": "In-App Downloads & Instant Header Update",
   "highlights": [
-    "Cute offline mascot screen when internet drops",
-    "Offline campus notes cache for study anywhere",
-    "Direct in-app update popup & instant refresh"
+    "Hotstar-style in-app downloads saved directly on device",
+    "Built-in offline PDF & document viewer without internet",
+    "1-Tap direct Update App button right in the topbar header",
+    "Full cute mascot screen when connection drops"
   ]
 }
