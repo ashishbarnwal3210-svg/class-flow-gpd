@@ -14,7 +14,6 @@ export default defineConfig({
     if (id.includes('/node_modules/@supabase/')) return 'vendor-supabase';
     if (id.includes('/node_modules/@tanstack/')) return 'vendor-query';
     if (id.includes('/node_modules/react-router')) return 'vendor-router';
-    if (id.includes('/node_modules/three/')) return 'vendor-three';
     if (id.includes('/node_modules/zod/')) return 'vendor-validation';
   } } } }
 });
