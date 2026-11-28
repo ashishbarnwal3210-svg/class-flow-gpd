@@ -18,6 +18,7 @@ import { compressImageIfNeeded } from './lib/compress-file';
 import { getAndClearSharedData } from './lib/shared-store';
 import { ThemeToggle } from './components/ThemeToggle';
 import { CampusUsersDonutChart } from './components/admin/CampusUsersDonutChart';
+import { stitchSwarm } from './lib/stitch-swarm';
 
 type Resource = {
   id: string; title: string; description: string | null; category: string; assignment_type: string | null;
@@ -40,48 +41,12 @@ function useStitchEffect() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    stitchSwarm.init();
 
     const selector = '.glass-panel, .resource-card, .notice-card, .dashboard-hero, .copilot-match, .general-answer, .admin-panel, .admin-overview-card, .duty-checkbox-card, .integration-card, .profile-view, .welcome-hero';
-
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          const el = entry.target as HTMLElement;
-          if (!el.classList.contains('is-stitched') && !el.classList.contains('is-stitching')) {
-            el.classList.add('is-stitching');
-            window.setTimeout(() => {
-              el.classList.remove('is-stitching');
-              el.classList.add('is-stitched');
-            }, 500);
-          }
-          observer.unobserve(el);
-        }
-      });
-    }, {
-      rootMargin: '0px 0px -20px 0px',
-      threshold: 0.05
+    document.querySelectorAll<HTMLElement>(selector).forEach(el => {
+      stitchSwarm.io?.observe(el);
     });
-
-    const scanAndObserve = () => {
-      const els = document.querySelectorAll(selector);
-      els.forEach(el => {
-        if (!el.classList.contains('is-stitched') && !el.classList.contains('is-stitching')) {
-          observer.observe(el);
-        }
-      });
-    };
-
-    scanAndObserve();
-
-    const mut = new MutationObserver(() => {
-      scanAndObserve();
-    });
-    mut.observe(document.body, { childList: true, subtree: true });
-
-    return () => {
-      observer.disconnect();
-      mut.disconnect();
-    };
   }, [location.pathname]);
 }
 

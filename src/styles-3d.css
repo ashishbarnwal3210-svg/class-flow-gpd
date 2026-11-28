@@ -652,7 +652,7 @@ input, textarea, [contenteditable="true"] {
 }
 
 /* =====================================================================
-   STITCHING WIREFRAME ASSEMBLY SYSTEM (0.5s APP OPEN & SCROLL STITCH)
+   CURSOR MULTI-AGENT STITCHING SWARM (Inspired by Ravi Paribrajak)
    ===================================================================== */
 
 /* 0.5s Fast App Boot Screen */
@@ -664,119 +664,153 @@ input, textarea, [contenteditable="true"] {
   animation: load 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
 }
 
-/* Stitched state */
-.is-stitching {
-  position: relative !important;
-  animation: stitchCard 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+body {
+  position: relative;
+}
+
+#stitch-stage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  min-height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.stitch-agent {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
   will-change: transform, opacity;
+  z-index: 10001;
+  pointer-events: none;
+  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* 4 Wireframe Corner Anchors (┌ ┐ └ ┘) */
-.is-stitching::before {
-  content: '' !important;
-  position: absolute !important;
-  inset: 0 !important;
-  pointer-events: none !important;
-  z-index: 30 !important;
-  border-radius: inherit !important;
-  background:
-    linear-gradient(to right, #38bdf8 3px, transparent 3px) 0 0,
-    linear-gradient(to bottom, #38bdf8 3px, transparent 3px) 0 0,
-    linear-gradient(to left, #38bdf8 3px, transparent 3px) 100% 0,
-    linear-gradient(to bottom, #38bdf8 3px, transparent 3px) 100% 0,
-    linear-gradient(to right, #38bdf8 3px, transparent 3px) 0 100%,
-    linear-gradient(to top, #38bdf8 3px, transparent 3px) 0 100%,
-    linear-gradient(to left, #38bdf8 3px, transparent 3px) 100% 100%,
-    linear-gradient(to top, #38bdf8 3px, transparent 3px) 100% 100% !important;
-  background-repeat: no-repeat !important;
-  background-size: 14px 14px !important;
-  animation: stitchCorners 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+.stitch-agent svg.arrow {
+  position: absolute;
+  left: -2px;
+  top: -1px;
+  width: 17px;
+  height: 22px;
+  overflow: visible;
+  filter: drop-shadow(0 2px 5px rgba(0,0,0,0.45));
 }
 
-/* Wireframe Dashed Stitch Perimeter & Blueprint Glow */
-.is-stitching::after {
-  content: '' !important;
-  position: absolute !important;
-  inset: 0 !important;
-  pointer-events: none !important;
-  z-index: 29 !important;
-  border-radius: inherit !important;
-  border: 1.5px dashed #38bdf8 !important;
-  animation: stitchBorder 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+.stitch-agent svg.cross {
+  position: absolute;
+  left: -9px;
+  top: -9px;
+  width: 18px;
+  height: 18px;
+  display: none;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
 }
 
-@keyframes stitchCard {
+.stitch-agent[data-mode="cross"] svg.arrow { display: none; }
+.stitch-agent[data-mode="cross"] svg.cross { display: block; }
+
+.stitch-agent label {
+  position: absolute;
+  left: 14px;
+  top: 16px;
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  line-height: 1;
+  padding: 4px 7px 3px;
+  border-radius: 4px 9px 9px 9px;
+  color: #050506;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  pointer-events: none;
+}
+
+.stitch-agent .ring {
+  position: absolute;
+  left: -14px;
+  top: -14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  opacity: 0;
+  transform: scale(0.2);
+  pointer-events: none;
+}
+
+.stitch-agent.click .ring {
+  animation: stitchAgentClick 0.4s ease-out forwards;
+}
+
+@keyframes stitchAgentClick {
+  0% { opacity: 0.95; transform: scale(0.2); }
+  100% { opacity: 0; transform: scale(1.35); }
+}
+
+.stitch-wire {
+  position: absolute;
+  border: 1.5px solid var(--wire-color, #38bdf8);
+  background: rgba(56, 189, 248, 0.08);
+  pointer-events: none;
+  z-index: 10000;
+  transition: opacity 0.25s, transform 0.25s;
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.22);
+}
+
+.stitch-wire u {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: #ffffff;
+  border: 1.5px solid var(--wire-color, #38bdf8);
+  display: block;
+}
+
+.stitch-wire u:nth-child(1) { left: -3.5px; top: -3.5px; }
+.stitch-wire u:nth-child(2) { right: -3.5px; top: -3.5px; }
+.stitch-wire u:nth-child(3) { left: -3.5px; bottom: -3.5px; }
+.stitch-wire u:nth-child(4) { right: -3.5px; bottom: -3.5px; }
+
+.stitch-wire em {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 5px);
+  transform: translateX(-50%);
+  background: var(--wire-color, #38bdf8);
+  color: #050506;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-weight: 700;
+  font-size: 10px;
+  line-height: 1;
+  padding: 3px 6px 2px;
+  border-radius: 4px;
+  white-space: nowrap;
+  font-style: normal;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+
+.stitch-wire.done {
+  opacity: 0;
+  transform: scale(0.99);
+}
+
+.is-card-stitched {
+  animation: cardStitchSnap 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes cardStitchSnap {
   0% {
-    opacity: 0.2;
-    transform: translateY(6px) scale(0.985);
-  }
-  40% {
-    opacity: 0.92;
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes stitchCorners {
-  0% {
-    opacity: 0;
-    transform: scale(0.92);
-    filter: drop-shadow(0 0 6px #38bdf8);
-  }
-  25% {
-    opacity: 1;
-    transform: scale(1.02);
-    filter: drop-shadow(0 0 10px #38bdf8);
-  }
-  75% {
-    opacity: 0.85;
-    transform: scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(1);
-    filter: none;
-  }
-}
-
-@keyframes stitchBorder {
-  0% {
-    opacity: 0.95;
-    border-color: #38bdf8;
-    box-shadow: 0 0 16px rgba(56, 189, 248, 0.3), inset 0 0 12px rgba(56, 189, 248, 0.12);
     transform: scale(0.985);
   }
-  60% {
-    opacity: 0.8;
-    border-color: #818cf8;
-    box-shadow: 0 0 20px rgba(129, 140, 248, 0.35);
-    transform: scale(1);
+  50% {
+    transform: scale(1.008);
   }
   100% {
-    opacity: 0;
-    border-color: transparent;
-    box-shadow: none;
     transform: scale(1);
   }
-}
-
-/* Light mode adjustments */
-:root:not([data-theme="dark"]) .is-stitching::before {
-  background:
-    linear-gradient(to right, #0284c7 3px, transparent 3px) 0 0,
-    linear-gradient(to bottom, #0284c7 3px, transparent 3px) 0 0,
-    linear-gradient(to left, #0284c7 3px, transparent 3px) 100% 0,
-    linear-gradient(to bottom, #0284c7 3px, transparent 3px) 100% 0,
-    linear-gradient(to right, #0284c7 3px, transparent 3px) 0 100%,
-    linear-gradient(to top, #0284c7 3px, transparent 3px) 0 100%,
-    linear-gradient(to left, #0284c7 3px, transparent 3px) 100% 100%,
-    linear-gradient(to top, #0284c7 3px, transparent 3px) 100% 100% !important;
-  background-repeat: no-repeat !important;
-  background-size: 14px 14px !important;
-}
-
-:root:not([data-theme="dark"]) .is-stitching::after {
-  border-color: #0284c7 !important;
 }
