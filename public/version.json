@@ -1,11 +1,11 @@
 {
-  "version": "1.2.7",
-  "buildTime": 1795772000000,
-  "title": "Smart Client Compression & Cloud Drive Unlimited Storage Support",
+  "version": "1.2.8",
+  "buildTime": 1795878000000,
+  "title": "Native OS Share Target & Upgraded AI Academic Copilot",
   "highlights": [
-    "Smart client-side canvas compression for notes & photos (30x storage savings)",
-    "Google Drive & Cloud Link support for unlimited 15GB+ storage",
-    "High-load query caching (5-min cache) & DB indexes for 1,000+ active users",
-    "Zero bandwidth exhaustion & 100% original ClassFlow visual polish"
+    "Native OS Share Target: ClassFlow now appears in Android & device share sheets (like WhatsApp) to share PDFs, docs & photos directly into the upload queue",
+    "Upgraded AI Academic Copilot: Fast answers powered by Groq Llama 3.3 with instant fallback",
+    "Smart Dual Routing: Combines AI tutoring explanations with real-time campus notes & file matches",
+    "Client-side search resilience: Even during high-traffic or network hiccups, library search keeps working seamlessly"
   ]
 }

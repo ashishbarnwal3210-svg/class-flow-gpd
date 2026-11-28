@@ -1,4 +1,4 @@
-const CACHE_NAME = 'classflow-cache-v10';
+const CACHE_NAME = 'classflow-cache-v11';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -35,9 +35,46 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+
+  // Handle native Web Share Target (files/links shared from phone files/WhatsApp to ClassFlow)
+  if (event.request.method === 'POST' && url.pathname === '/share-target') {
+    event.respondWith((async () => {
+      try {
+        const formData = await event.request.formData();
+        const files = formData.getAll('shared_files');
+        const title = formData.get('title') || '';
+        const text = formData.get('text') || '';
+        const link = formData.get('url') || '';
+
+        await new Promise((resolve, reject) => {
+          const req = indexedDB.open('classflow-share-db', 1);
+          req.onupgradeneeded = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains('shared-files')) {
+              db.createObjectStore('shared-files', { keyPath: 'id', autoIncrement: true });
+            }
+          };
+          req.onsuccess = () => {
+            const db = req.result;
+            const tx = db.transaction('shared-files', 'readwrite');
+            const store = tx.objectStore('shared-files');
+            store.add({ files, title, text, url: link, timestamp: Date.now() });
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+          };
+          req.onerror = () => reject(req.error);
+        });
+      } catch (err) {
+        console.error('Share target capture error:', err);
+      }
+      return Response.redirect('/upload?shared=1', 303);
+    })());
+    return;
+  }
+
   // Only handle GET requests, don't intercept API / supabase calls
   if (event.request.method !== 'GET') return;
-  const url = new URL(event.request.url);
   
   // Skip cross-origin requests (e.g. Supabase, analytics)
   if (url.origin !== self.location.origin) return;

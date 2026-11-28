@@ -15,6 +15,7 @@ import { resourceMetadataSchema, resourceMimeType, validateResourceFile } from '
 import { useUIStore } from './lib/ui-store';
 import { uploadPrivateResourceFile } from './lib/upload';
 import { compressImageIfNeeded } from './lib/compress-file';
+import { getAndClearSharedData } from './lib/shared-store';
 
 type Resource = {
   id: string; title: string; description: string | null; category: string; assignment_type: string | null;
@@ -335,30 +336,104 @@ function ResourceCard({resource:r,user}:{resource:Resource;user:Profile|null}) {
 }
 function CopilotPage({user}:{user:Profile|null}) {
   const [question,setQuestion]=useState('');const [loading,setLoading]=useState(false);const [error,setError]=useState('');const [result,setResult]=useState<any|null>(null);const [history,setHistory]=useState<string[]>([]);
-  async function ask(e:FormEvent){e.preventDefault();const text=question.trim();if(text.length<2){setError('Enter a little more to search.');return;}if(!supabase||!user){setError(!backendConfigured?'Connect Supabase to enable ClassFlow Copilot.':'Sign in to search your campus materials.');return;}setLoading(true);setError('');try{const {data,error:invokeError}=await requireBackend().functions.invoke('copilot',{body:{query:text}});if(invokeError)throw invokeError;if(data?.error)throw new Error(data.error);setResult(data);setHistory(old=>[text,...old].slice(0,5));setQuestion('');}catch(err){setError(err instanceof Error?err.message:'Copilot could not complete that request.');}finally{setLoading(false);}}
-  const suggestions=['Find notes on data structures','Show me semester 3 PYQs','How does a binary search tree work?'];
-  return <><PageHeading eyebrow="AUTOMATIC ACADEMIC SEARCH" title="ClassFlow Copilot" description="Ask naturally. Copilot routes campus-material searches to original resources and general questions to your configured AI assistant."/><BackendGate user={user} feature="AI-powered academic search"/>
-    <div className="copilot-shell"><div className="copilot-intro"><span className="copilot-orb"><Sparkles size={21}/></span><div><b>What are you looking for?</b><p>Search across your campus resources or ask a general study question.</p></div><span className="route-chip"><i/> Automatic routing</span></div>
-      <form className="copilot-form" onSubmit={ask}><Search size={18}/><input value={question} onChange={e=>setQuestion(e.target.value)} placeholder="e.g. Find notes about recursion in semester 3" aria-label="Ask ClassFlow Copilot"/><button className="button button-primary compact" type="submit" disabled={loading||!backendConfigured||!user}>{loading?<RefreshCw className="spin" size={15}/>:<>Ask <ArrowRight size={14}/></>}</button></form>
+  async function ask(e:FormEvent){
+    e.preventDefault();
+    const text=question.trim();
+    if(text.length<2){setError('Enter a little more to search or ask.');return;}
+    if(!supabase||!user){setError(!backendConfigured?'Connect Supabase to enable ClassFlow Copilot.':'Sign in to use ClassFlow Copilot.');return;}
+    setLoading(true);setError('');
+    try {
+      const {data,error:invokeError}=await requireBackend().functions.invoke('copilot',{body:{query:text}});
+      if(invokeError)throw invokeError;
+      if(data?.error)throw new Error(data.error);
+      setResult(data);
+      setHistory(old=>[text,...old.filter(h=>h!==text)].slice(0,5));
+      setQuestion('');
+    } catch(err) {
+      // Client-side fallback: search campus resources directly
+      try {
+        const {data:fallbackResources}=await requireBackend().from('resources')
+          .select('id, title, description, category, unit_module, external_url, resource_files(id, original_name, mime_type, size_bytes)')
+          .or(`title.ilike.%${text}%,description.ilike.%${text}%,unit_module.ilike.%${text}%`)
+          .eq('is_published',true)
+          .is('deleted_at',null)
+          .limit(5);
+
+        if(fallbackResources&&fallbackResources.length>0){
+          setResult({
+            route:'academic',
+            answer:`Found ${fallbackResources.length} matching campus resources in your library for "${text}":`,
+            matches:fallbackResources.map(r=>({
+              id:r.id,
+              title:r.title,
+              description:r.description,
+              category:r.category,
+              unit_module:r.unit_module,
+              external_url:r.external_url,
+              files:(r.resource_files||[]).map((f:any)=>({
+                id:f.id,
+                name:f.original_name,
+                mime_type:f.mime_type,
+                size_bytes:f.size_bytes,
+              }))
+            }))
+          });
+          setHistory(old=>[text,...old.filter(h=>h!==text)].slice(0,5));
+          setQuestion('');
+          return;
+        }
+      } catch {
+        // Fallback search also failed
+      }
+      setError(err instanceof Error?err.message:'Copilot could not complete that request. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
+  const suggestions=['Find notes on data structures','Show me semester 3 PYQs','Explain binary search trees with an example','Ohm\'s law and circuit formulas'];
+  return <><PageHeading eyebrow="AI ACADEMIC COPILOT" title="ClassFlow Copilot" description="Ask any study question or search your campus library. Copilot gives you smart explanations and links to class notes."/><BackendGate user={user} feature="AI-powered academic search"/>
+    <div className="copilot-shell"><div className="copilot-intro"><span className="copilot-orb"><Sparkles size={21}/></span><div><b>What do you need help with?</b><p>Ask concept questions, formulas, or search for campus notes and PYQs.</p></div><span className="route-chip"><i/> AI + Campus Library</span></div>
+      <form className="copilot-form" onSubmit={ask}><Search size={18}/><input value={question} onChange={e=>setQuestion(e.target.value)} placeholder="e.g. Explain recursion or find semester 3 notes" aria-label="Ask ClassFlow Copilot"/><button className="button button-primary compact" type="submit" disabled={loading||!backendConfigured||!user}>{loading?<RefreshCw className="spin" size={15}/>:<>Ask <ArrowRight size={14}/></>}</button></form>
       {error&&<div className="copilot-error"><AlertCircle size={15}/>{error}</div>}
       {!result&&!loading&&<div className="suggestions"><span>TRY ASKING</span>{suggestions.map(s=><button key={s} onClick={()=>setQuestion(s)}>{s}<ArrowRight size={12}/></button>)}</div>}
-      {loading&&<div className="copilot-loading"><span className="loading-pulse"><Sparkles size={17}/></span><div><b>Finding the right path…</b><small>Checking the campus library and preparing a helpful response.</small></div></div>}
-      {result&&<section className="copilot-result"><div className="result-heading"><span className="result-route-icon">{result.route==='academic'?<Library size={15}/>:<Sparkles size={15}/>}</span><div><span className="eyebrow">{result.route==='academic'?'CAMPUS RESOURCE SEARCH':'GENERAL STUDY ANSWER'}</span><h2>{result.route==='academic'?'Original class material':'A helpful starting point'}</h2></div><button className="text-button" onClick={()=>setResult(null)}>Clear <X size={13}/></button></div>
-        {result.route==='academic'&&result.message&&<div className="no-match"><BookOpen size={18}/><span><b>No matching class material found.</b><small>Try a subject, module name or another phrase.</small></span></div>}
-        {result.route==='academic'&&result.matches?.length>0&&<div className="copilot-matches">{result.matches.map((m:any)=><article className="copilot-match glass-panel" key={m.chunk_id}><div className="match-top"><span className="resource-file-icon"><FileText size={15}/></span><span className="category-pill">{m.resource_category}</span><span className="match-score">Relevant result</span></div><h3>{m.resource_title}</h3><div className="match-meta"><span>{m.subject_name||'General'}</span><i/><span>{m.branch_name||'Any branch'}</span><i/><span>{m.semester_name||'Any semester'}</span><i/><span>{m.uploader_name}</span></div><p className="match-excerpt">{m.chunk_text}</p>{m.files?.length>0&&<div className="match-files">{m.files.map((f:any)=><a key={f.id} href={f.signed_url||undefined} target="_blank" rel="noreferrer" className={!f.signed_url?'disabled':''}><FileText size={13}/>{f.name}<small>{prettySize(f.size_bytes)}</small><ArrowDownToLine size={13}/></a>)}</div>}</article>)}</div>}
-        {result.route==='general'&&<div className="general-answer glass-panel"><Sparkles size={16}/><p>{result.answer}</p><small>AI-generated response · Verify important academic information with your course materials.</small></div>}
+      {loading&&<div className="copilot-loading"><span className="loading-pulse"><Sparkles size={17}/></span><div><b>Thinking & Searching…</b><small>Consulting AI tutor and scanning campus library materials.</small></div></div>}
+      {result&&<section className="copilot-result"><div className="result-heading"><span className="result-route-icon">{result.matches?.length>0?<Library size={15}/>:<Sparkles size={15}/>}</span><div><span className="eyebrow">{result.matches?.length>0?'CAMPUS RESOURCES & AI TUTOR':'AI STUDY TUTOR'}</span><h2>{result.matches?.length>0?'Campus Notes & Concept Guide':'Study Explanation'}</h2></div><button className="text-button" onClick={()=>setResult(null)}>Clear <X size={13}/></button></div>
+        {result.answer&&<div className="general-answer glass-panel" style={{whiteSpace:'pre-wrap',lineHeight:'1.65'}}><div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'10px',color:'var(--brand)'}}><Sparkles size={16}/><b>ClassFlow Copilot AI</b></div><p>{result.answer}</p><small style={{display:'block',marginTop:'12px',opacity:0.75}}>AI academic response · Verify key syllabus requirements with your course faculty.</small></div>}
+        {result.matches?.length>0&&<div style={{marginTop:'20px'}}><div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'12px',fontWeight:600}}><Library size={16}/><span>Campus Study Materials ({result.matches.length})</span></div><div className="copilot-matches">{result.matches.map((m:any)=><article className="copilot-match glass-panel" key={m.id||m.chunk_id}><div className="match-top"><span className="resource-file-icon"><FileText size={15}/></span><span className="category-pill">{m.category||m.resource_category||'Notes'}</span><span className="match-score">Campus Resource</span></div><h3>{m.title||m.resource_title}</h3><div className="match-meta"><span>{m.unit_module||m.subject_name||'General'}</span><i/><span>{m.uploader||m.uploader_name||'Campus member'}</span></div>{m.description&&<p className="match-excerpt">{m.description}</p>}{m.files?.length>0&&<div className="match-files">{m.files.map((f:any)=><a key={f.id} href={f.signed_url||undefined} target="_blank" rel="noreferrer" className={!f.signed_url?'disabled':''}><FileText size={13}/>{f.name}{f.size_bytes?<small>{prettySize(f.size_bytes)}</small>:null}<ArrowDownToLine size={13}/></a>)}</div>}{m.external_url&&<div style={{marginTop:'8px'}}><a href={m.external_url} target="_blank" rel="noreferrer" className="text-button" style={{fontSize:'13px',display:'inline-flex',alignItems:'center',gap:'4px'}}>Open Cloud / Drive Link <ExternalLink size={13}/></a></div>}</article>)}</div></div>}
       </section>}
       {history.length>0&&<div className="copilot-history"><span>RECENT SEARCHES</span>{history.map((h,i)=><button key={`${h}-${i}`} onClick={()=>setQuestion(h)}><Clock3 size={12}/>{h}<ArrowUpRightIcon/></button>)}</div>}
-    </div><div className="copilot-footnote"><ShieldCheck size={14}/><span>Document retrieval returns original files and relevant excerpts. General answers are AI-generated and are not a substitute for your course material.</span></div>
+    </div><div className="copilot-footnote"><ShieldCheck size={14}/><span>Document retrieval provides direct access to campus files. General explanations are AI-generated for student assistance.</span></div>
   </>;
 }
 function ArrowUpRightIcon(){return <ArrowRight size={12}/>;}
 
 function UploadPage({user}:{user:Profile|null}) {
   const queryClient=useQueryClient();const location=useLocation();const editId=new URLSearchParams(location.search).get('edit');const [editLoaded,setEditLoaded]=useState(false);
-  const [files,setFiles]=useState<File[]>([]);const [category,setCategory]=useState('Notes');const [assignment,setAssignment]=useState('');const [title,setTitle]=useState('');const [description,setDescription]=useState('');const [unit,setUnit]=useState('');const [tags,setTags]=useState('');const [pageCount,setPageCount]=useState('');const [externalUrl,setExternalUrl]=useState('');const [progress,setProgress]=useState<Record<string,number>>({});const [status,setStatus]=useState('idle');const [errors,setErrors]=useState<string[]>([]);const [stage,setStage]=useState(editId?2:1);const [uploadSummary,setUploadSummary]=useState<{done:number;failed:string[]}|null>(null);const [retryResourceId,setRetryResourceId]=useState<string|null>(null);const [replaceTargets,setReplaceTargets]=useState<Record<string,string>>({});const activeUpload=useRef<AbortController|null>(null);const cancelUpload=useRef(false);const overallProgress=files.length?Math.round(files.reduce((sum,file)=>sum+(progress[fileKey(file)]||0)*file.size,0)/files.reduce((sum,file)=>sum+file.size,0)):0;
+  const [files,setFiles]=useState<File[]>([]);const [category,setCategory]=useState('Notes');const [assignment,setAssignment]=useState('');const [title,setTitle]=useState('');const [description,setDescription]=useState('');const [unit,setUnit]=useState('');const [tags,setTags]=useState('');const [pageCount,setPageCount]=useState('');const [externalUrl,setExternalUrl]=useState('');const [progress,setProgress]=useState<Record<string,number>>({});const [status,setStatus]=useState('idle');const [errors,setErrors]=useState<string[]>([]);const [stage,setStage]=useState(editId?2:1);const [sharedNotice,setSharedNotice]=useState<string|null>(null);const [uploadSummary,setUploadSummary]=useState<{done:number;failed:string[]}|null>(null);const [retryResourceId,setRetryResourceId]=useState<string|null>(null);const [replaceTargets,setReplaceTargets]=useState<Record<string,string>>({});const activeUpload=useRef<AbortController|null>(null);const cancelUpload=useRef(false);const overallProgress=files.length?Math.round(files.reduce((sum,file)=>sum+(progress[fileKey(file)]||0)*file.size,0)/files.reduce((sum,file)=>sum+file.size,0)):0;
   const existingResource=useQuery({queryKey:['resource-edit',editId],enabled:!!editId&&!!supabase&&!!user,queryFn:async()=>{const {data,error}=await requireBackend().from('resources').select('id,title,description,category,assignment_type,unit_module,tags,page_count,external_url,resource_files(id,original_name,mime_type,size_bytes,storage_path)').eq('id',editId!).is('deleted_at',null).is('resource_files.deleted_at',null).single();if(error)throw error;return data as any;}});
   useEffect(()=>{const r=existingResource.data;if(!r||editLoaded)return;setTitle(r.title);setDescription(r.description||'');setCategory(r.category);setAssignment(r.assignment_type||'');setUnit(r.unit_module||'');setTags((r.tags||[]).join(', '));setPageCount(r.page_count?String(r.page_count):'');setExternalUrl(r.external_url||'');setStage(2);setEditLoaded(true);},[existingResource.data,editLoaded]);
+  useEffect(()=>{
+    const params=new URLSearchParams(location.search);
+    const sharedTitle=params.get('title');const sharedText=params.get('text');const sharedUrl=params.get('url');
+    if(sharedTitle)setTitle(t=>t||sharedTitle);
+    if(sharedText)setDescription(d=>d||sharedText);
+    if(sharedUrl)setExternalUrl(u=>u||sharedUrl);
+    if(params.get('shared')==='1'){
+      void getAndClearSharedData().then(data=>{
+        if(!data)return;
+        if(data.title)setTitle(t=>t||data.title||'');
+        if(data.text)setDescription(d=>d||data.text||'');
+        if(data.url)setExternalUrl(u=>u||data.url||'');
+        if(data.files&&data.files.length>0){
+          void appendFiles(data.files);
+          const firstFileName=data.files[0].name.replace(/\.[^/.]+$/,'');
+          setTitle(t=>t||firstFileName);
+          setSharedNotice(`${data.files.length} file(s) received from your device share!`);
+          toast(`${data.files.length} file(s) received from share sheet!`);
+        }
+      });
+    }
+  },[location.search]);
   const appendFiles=async(input:File[])=>{const valid:File[]=[];const errs:string[]=[];for(const raw of input){const f=await compressImageIfNeeded(raw);const issue=validateResourceFile(f);if(issue){errs.push(issue);continue;}valid.push(f);}setFiles(old=>{const seen=new Set(old.map(f=>`${f.name}:${f.size}:${f.lastModified}`));return [...old,...valid.filter(f=>!seen.has(`${f.name}:${f.size}:${f.lastModified}`))];});setErrors(errs);};
   const onFiles=(e:ChangeEvent<HTMLInputElement>)=>{void appendFiles(Array.from(e.target.files||[]));e.target.value='';};
   const removeFile=(i:number)=>setFiles(old=>old.filter((_,idx)=>idx!==i));
@@ -377,6 +452,7 @@ function UploadPage({user}:{user:Profile|null}) {
   }
   const gate=<BackendGate user={user} feature="Secure resource publishing"/>;
   return <><PageHeading eyebrow={editId?'RESOURCE MANAGEMENT':'SHARE WHAT HELPS'} title={editId?'Edit your resource':'Share a resource'} description={editId?'Update the details or add more files to a resource you shared.':'Good class material gets better when it finds the right people.'}/>{gate&&<div className="gate-spacing">{gate}</div>}
+    {sharedNotice&&<div style={{display:'flex',alignItems:'center',gap:'8px',padding:'12px 16px',background:'rgba(37,99,235,0.08)',border:'1px solid rgba(37,99,235,0.25)',color:'var(--brand,#2563eb)',borderRadius:'12px',marginBottom:'16px',fontSize:'13.5px',fontWeight:500}}><CheckCircle2 size={16}/><span>{sharedNotice}</span></div>}
     <div className="upload-layout"><form className="upload-form glass-panel" onSubmit={submit}>
       <div className="stepper"><div className={`step ${stage>=1?'current':''}`}><span>01</span><b>Files</b></div><i/><div className={`step ${stage>=2?'current':''}`}><span>02</span><b>Details</b></div><i/><div className={`step ${stage>=3?'current':''}`}><span>03</span><b>Review</b></div></div>
       {stage===1&&<section className="form-stage"><div className="form-section-title"><div><h2>Start with your files</h2><p>Add class documents, or link a Google Drive / Cloud folder.</p></div><span className="step-count">01 / 03</span></div>
