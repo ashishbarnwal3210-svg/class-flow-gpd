@@ -18,7 +18,6 @@ import { compressImageIfNeeded } from './lib/compress-file';
 import { getAndClearSharedData } from './lib/shared-store';
 import { ThemeToggle } from './components/ThemeToggle';
 import { CampusUsersDonutChart } from './components/admin/CampusUsersDonutChart';
-import { stitchSwarm } from './lib/stitch-swarm';
 
 type Resource = {
   id: string; title: string; description: string | null; category: string; assignment_type: string | null;
@@ -36,22 +35,7 @@ const fileKey = (f:File) => `${f.name}:${f.size}:${f.lastModified}`;
 
 const isTestEnv = import.meta.env.MODE === 'test';
 
-function useStitchEffect() {
-  const location = useLocation();
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    stitchSwarm.init();
-
-    const t = setTimeout(() => {
-      stitchSwarm.scanAndStitchVisible();
-    }, 120);
-    return () => clearTimeout(t);
-  }, [location.pathname]);
-}
-
 function App() {
-  useStitchEffect();
   const [user, setUser] = useState<Profile | null>(null);
   const [booting, setBooting] = useState(!isTestEnv && backendConfigured);
 
@@ -59,7 +43,7 @@ function App() {
     if (isTestEnv || !backendConfigured) return;
     const timer = setTimeout(() => {
       setBooting(false);
-    }, 500);
+    }, 1200);
     return () => clearTimeout(timer);
   }, []);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -214,7 +198,7 @@ function App() {
         <Route path="/settings" element={<SettingsPage user={user}/>}/>
         <Route path="*" element={<Welcome user={user}/>}/>
       </Routes></motion.div>
-      <nav className="mobile-nav" aria-label="Main navigation">
+      <nav className="mobile-nav glass-panel" aria-label="Main navigation">
         <MobileLink to="/dashboard" icon={<Home size={19}/>} label="Home"/>
         <MobileLink to="/library" icon={<BookOpen size={19}/>} label="Library"/>
         <NavLink to="/upload" aria-label="Upload resource" className={({isActive}) => `mobile-add ${isActive?'active':''}`}><Plus size={22}/></NavLink>
