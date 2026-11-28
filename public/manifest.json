@@ -1,5 +1,5 @@
 {
-  "name": "ClassFlow — Academic Hub",
+  "name": "ClassFlow",
   "short_name": "ClassFlow",
   "description": "Campus academic hub for class notes, assignments, study materials and campus connections.",
   "start_url": "/",
@@ -7,8 +7,8 @@
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#f4f0e7",
-  "theme_color": "#f4f0e7",
+  "background_color": "#090d16",
+  "theme_color": "#090d16",
   "icons": [
     {
       "src": "/favicon-48x48.png",

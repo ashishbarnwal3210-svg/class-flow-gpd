@@ -1,5 +1,5 @@
 /* =========================================================
-   ClassFlow Dark / Light Mode & Admin Analytics Stylesheet
+   ClassFlow Dark / Light Mode, Copilot & Admin Analytics
    ========================================================= */
 
 /* --- 1. Prevent Android Chrome "Touch to Search" & Accidental Selection --- */
@@ -69,7 +69,78 @@ input, textarea, [contenteditable="true"] {
   transform: rotate(20deg) scale(1.05);
 }
 
-/* --- 3. Admin Studio: Circular Donut Graph & Subadmin Duties --- */
+/* --- 3. Copilot AI Explanation Panel (Zero Word Overlay) --- */
+.general-answer {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+  padding: 20px 22px !important;
+  border-radius: 18px !important;
+  line-height: 1.7 !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+.general-answer-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--sage-deep, #0284c7);
+}
+
+.general-answer-body {
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: inherit;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.general-answer-footer {
+  font-size: 10px;
+  opacity: 0.72;
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+/* --- 4. Pinned Resources Badge & Buttons --- */
+.resource-cover-pinned {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 6;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.35);
+  letter-spacing: 0.3px;
+}
+
+.small-action.pin-action {
+  font-weight: 600;
+}
+
+.small-action.pin-action.is-pinned {
+  background: rgba(245, 158, 11, 0.18);
+  color: #d97706;
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+[data-theme="dark"] .small-action.pin-action.is-pinned {
+  background: rgba(245, 158, 11, 0.25);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.5);
+}
+
+/* --- 5. Admin Studio: Circular Donut Graph & Subadmin Management --- */
 .campus-analytics-card {
   padding: 24px 26px;
   border-radius: 24px;
@@ -236,7 +307,7 @@ input, textarea, [contenteditable="true"] {
   border-color: var(--sage);
 }
 
-/* --- 4. Dark Mode Adjustments --- */
+/* --- 6. Comprehensive High-Contrast Dark Mode --- */
 [data-theme="dark"] {
   --ivory: #090d16;
   --cream: #101626;
@@ -259,24 +330,24 @@ input, textarea, [contenteditable="true"] {
 }
 
 [data-theme="dark"] .desktop-sidebar {
-  background: rgba(13, 18, 32, 0.82) !important;
+  background: rgba(13, 18, 32, 0.85) !important;
   border-color: rgba(255, 255, 255, 0.08) !important;
   box-shadow: 0 14px 36px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
 }
 
 [data-theme="dark"] .glass-panel {
-  background: rgba(16, 22, 38, 0.65) !important;
+  background: rgba(16, 22, 38, 0.75) !important;
   border-color: rgba(255, 255, 255, 0.08) !important;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
 }
 
 [data-theme="dark"] .topbar {
   border-bottom-color: rgba(255, 255, 255, 0.08) !important;
-  background: rgba(10, 14, 26, 0.85) !important;
+  background: rgba(10, 14, 26, 0.88) !important;
 }
 
 [data-theme="dark"] .mobile-nav {
-  background: rgba(10, 14, 26, 0.92) !important;
+  background: rgba(10, 14, 26, 0.94) !important;
   border-color: rgba(255, 255, 255, 0.1) !important;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7) !important;
 }
@@ -320,44 +391,160 @@ input, textarea, [contenteditable="true"] {
 }
 
 [data-theme="dark"] .feature-card {
-  background: rgba(17, 24, 42, 0.6) !important;
+  background: rgba(17, 24, 42, 0.65) !important;
   border-color: rgba(255, 255, 255, 0.08) !important;
 }
 
-[data-theme="dark"] .legend-row {
-  background: rgba(255, 255, 255, 0.04) !important;
-  border-color: rgba(255, 255, 255, 0.08) !important;
+/* Copilot Dark Mode Fixes */
+[data-theme="dark"] .copilot-shell {
+  background: rgba(15, 23, 42, 0.8) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5) !important;
 }
 
-[data-theme="dark"] .legend-row:hover {
-  background: rgba(255, 255, 255, 0.08) !important;
+[data-theme="dark"] .copilot-intro > div > b {
+  color: #f8fafc !important;
 }
 
-[data-theme="dark"] .duty-checkbox-card {
-  background: rgba(255, 255, 255, 0.04) !important;
-  border-color: rgba(255, 255, 255, 0.08) !important;
+[data-theme="dark"] .copilot-intro > div > p {
+  color: #94a3b8 !important;
 }
 
-[data-theme="dark"] .duty-checkbox-card.checked {
+[data-theme="dark"] .copilot-orb {
   background: rgba(56, 189, 248, 0.15) !important;
-  border-color: #38bdf8 !important;
+  color: #38bdf8 !important;
+  border: 1px solid rgba(56, 189, 248, 0.3) !important;
 }
 
-[data-theme="dark"] .duty-preset-btn {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.1);
-  color: #e2e8f0;
+[data-theme="dark"] .route-chip {
+  background: rgba(30, 41, 59, 0.8) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: #cbd5e1 !important;
 }
 
-[data-theme="dark"] .top-search {
-  background: rgba(255, 255, 255, 0.05) !important;
+[data-theme="dark"] .copilot-form {
+  background: rgba(30, 41, 59, 0.85) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: #f8fafc !important;
+}
+
+[data-theme="dark"] .copilot-form input {
+  color: #f8fafc !important;
+}
+
+[data-theme="dark"] .copilot-form input::placeholder {
+  color: #64748b !important;
+}
+
+[data-theme="dark"] .general-answer {
+  background: rgba(30, 41, 59, 0.88) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: #f1f5f9 !important;
+}
+
+[data-theme="dark"] .general-answer-body,
+[data-theme="dark"] .general-answer > p {
+  color: #f1f5f9 !important;
+}
+
+[data-theme="dark"] .general-answer-header {
+  color: #38bdf8 !important;
+}
+
+[data-theme="dark"] .copilot-match {
+  background: rgba(30, 41, 59, 0.8) !important;
   border-color: rgba(255, 255, 255, 0.1) !important;
   color: #f1f5f9 !important;
 }
 
-[data-theme="dark"] input, [data-theme="dark"] select, [data-theme="dark"] textarea {
+[data-theme="dark"] .copilot-match h3 {
+  color: #f8fafc !important;
+}
+
+[data-theme="dark"] .match-excerpt {
+  color: #cbd5e1 !important;
+}
+
+[data-theme="dark"] .copilot-history > button,
+[data-theme="dark"] .suggestions > button {
+  background: rgba(30, 41, 59, 0.7) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: #cbd5e1 !important;
+}
+
+[data-theme="dark"] .copilot-history > button:hover,
+[data-theme="dark"] .suggestions > button:hover {
+  background: rgba(51, 65, 85, 0.9) !important;
+  color: #f8fafc !important;
+}
+
+/* Resource Cards & Rows in Dark Mode */
+[data-theme="dark"] .resource-card {
+  background: rgba(16, 22, 38, 0.8) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-theme="dark"] .resource-card-body h3 {
+  color: #f8fafc !important;
+}
+
+[data-theme="dark"] .resource-description {
+  color: #94a3b8 !important;
+}
+
+[data-theme="dark"] .resource-tile {
+  background: rgba(30, 41, 59, 0.7) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: #f1f5f9 !important;
+}
+
+[data-theme="dark"] .resource-tile:hover {
+  background: rgba(51, 65, 85, 0.85) !important;
+}
+
+[data-theme="dark"] .resource-tile-title {
+  color: #f8fafc !important;
+}
+
+/* Dashboard Panels in Dark Mode */
+[data-theme="dark"] .broadcast-panel,
+[data-theme="dark"] .stats-card,
+[data-theme="dark"] .welcome-small-card {
+  background: rgba(16, 22, 38, 0.75) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-theme="dark"] .notice-copy b,
+[data-theme="dark"] .stat-row strong,
+[data-theme="dark"] .welcome-small-card h3 {
+  color: #f8fafc !important;
+}
+
+[data-theme="dark"] .notice-copy p,
+[data-theme="dark"] .welcome-small-card p {
+  color: #94a3b8 !important;
+}
+
+/* Inputs, Selects & Forms in Dark Mode */
+[data-theme="dark"] input, 
+[data-theme="dark"] select, 
+[data-theme="dark"] textarea {
   background: rgba(17, 24, 39, 0.85) !important;
   border-color: rgba(255, 255, 255, 0.12) !important;
+  color: #f1f5f9 !important;
+}
+
+[data-theme="dark"] input:focus, 
+[data-theme="dark"] select:focus, 
+[data-theme="dark"] textarea:focus {
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2) !important;
+}
+
+/* Top Search & Dropdown in Dark Mode */
+[data-theme="dark"] .top-search {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
   color: #f1f5f9 !important;
 }
 
@@ -367,11 +554,13 @@ input, textarea, [contenteditable="true"] {
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6) !important;
 }
 
-[data-theme="dark"] .dropdown-menu a, [data-theme="dark"] .dropdown-menu button {
+[data-theme="dark"] .dropdown-menu a, 
+[data-theme="dark"] .dropdown-menu button {
   color: #f1f5f9 !important;
 }
 
-[data-theme="dark"] .dropdown-menu a:hover, [data-theme="dark"] .dropdown-menu button:hover {
+[data-theme="dark"] .dropdown-menu a:hover, 
+[data-theme="dark"] .dropdown-menu button:hover {
   background: rgba(255, 255, 255, 0.08) !important;
 }
 
@@ -410,7 +599,32 @@ input, textarea, [contenteditable="true"] {
   background: rgba(255, 255, 255, 0.15) !important;
 }
 
-/* --- 5. Mobile Responsiveness --- */
+[data-theme="dark"] .legend-row {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-theme="dark"] .legend-row:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-theme="dark"] .duty-checkbox-card {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-theme="dark"] .duty-checkbox-card.checked {
+  background: rgba(56, 189, 248, 0.15) !important;
+  border-color: #38bdf8 !important;
+}
+
+[data-theme="dark"] .duty-preset-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+}
+
+/* --- 7. Mobile Responsiveness --- */
 @media (max-width: 640px) {
   .topbar {
     height: 60px;

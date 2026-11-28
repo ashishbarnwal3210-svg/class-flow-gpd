@@ -8,7 +8,7 @@ import {
   Check, CheckCircle2, ChevronDown, CircleHelp, CloudUpload, ExternalLink, FileArchive, FileImage, FilePlus2, FileText, Filter,
   GraduationCap, Home, Library, LockKeyhole, LogIn, LogOut, MessageCircle, MoreHorizontal,
   Plus, Search, Settings, ShieldCheck, Sparkles, Users, UserRound, X, Upload, RefreshCw,
-  Eye, EyeOff, Pencil, Send, Bookmark, Megaphone, FolderOpen, Trash2,
+  Eye, EyeOff, Pencil, Send, Bookmark, Megaphone, FolderOpen, Trash2, Pin, PinOff, UserPlus,
 } from 'lucide-react';
 import { backendConfigured, requireBackend, supabase } from './lib/supabase';
 import { resourceMetadataSchema, resourceMimeType, validateResourceFile } from './lib/resource-validation';
@@ -22,7 +22,9 @@ import { CampusUsersDonutChart } from './components/admin/CampusUsersDonutChart'
 type Resource = {
   id: string; title: string; description: string | null; category: string; assignment_type: string | null;
   branch_id: string | null; semester_id: string | null; subject_id: string | null; unit_module: string | null;
-  tags: string[] | null; page_count: number | null; external_url?: string | null; created_at: string; profiles?: { full_name: string; classflow_id: string } | null;
+  tags: string[] | null; page_count: number | null; external_url?: string | null; created_at: string;
+  is_pinned?: boolean; pinned_at?: string | null;
+  profiles?: { full_name: string; classflow_id: string } | null;
   resource_files?: { id: string; original_name: string; mime_type: string; size_bytes: number; storage_path: string }[];
 };
 type Profile = { id: string; full_name: string; username: string; classflow_id: string; role?: string; permissions?: string[]; avatar_url?: string | null; bio?: string | null };
@@ -280,14 +282,22 @@ function Feature({icon,title,text}:{icon:React.ReactNode;title:string;text:strin
 
 function Dashboard({user}:{user:Profile|null}) {
   const notices = useQuery({queryKey:['notices'],enabled:!!supabase&&!!user,queryFn:async()=>{const {data,error}=await requireBackend().from('notices').select('id,title,body,priority,created_at,profiles:profiles!notices_author_id_fkey(full_name)').eq('is_published',true).order('created_at',{ascending:false}).limit(3);if(error)throw error;return data??[];}});
-  const resources = useQuery({queryKey:['dashboard-resources',user?.id],enabled:!!supabase&&!!user,queryFn:async()=>{const {data,error}=await requireBackend().from('bookmarks').select('resources:resources!bookmarks_resource_id_fkey(id,title,category,created_at,resource_files(id))').eq('user_id',user!.id).order('created_at',{ascending:false}).limit(3);if(error)throw error;return (data??[]).map((row:any)=>row.resources).filter(Boolean);}});
+  const pinnedResources = useQuery({queryKey:['dashboard-pinned-resources'],enabled:!!supabase&&!!user,queryFn:async()=>{
+    const db=requireBackend();
+    const {data:pinned,error}=await db.from('resources').select('id,title,category,is_pinned,created_at,resource_files(id)').eq('is_published',true).eq('is_pinned',true).is('deleted_at',null).order('pinned_at',{ascending:false}).limit(6);
+    if(error)throw error;
+    if(pinned&&pinned.length>0)return pinned;
+    const {data:recent,error:re}=await db.from('resources').select('id,title,category,is_pinned,created_at,resource_files(id)').eq('is_published',true).is('deleted_at',null).order('created_at',{ascending:false}).limit(3);
+    if(re)throw re;
+    return recent??[];
+  }});
   return <><PageHeading eyebrow="YOUR ACADEMIC HUB" title={user?`Good to see you, ${user.full_name.split(' ')[0]}.`:'Your campus, in one place.'} description="A quieter space for the things that help you move forward." action={<button className="button button-secondary compact" onClick={()=>toast('Campus notifications are not configured in this deployment yet.')}><Bell size={15}/> Notifications</button>}/>
     <div className="dashboard-grid">
       <section className="dashboard-main-col">
         <div className="section-title-row"><div><div className="eyebrow">STAY IN THE LOOP</div><h2>Campus broadcast</h2></div><span className="muted-hint">Latest campus updates</span></div>
         <div className="broadcast-panel glass-panel">{notices.data?.length ? notices.data.map((n:any)=><div className="notice-item" key={n.id}><span className={`notice-symbol ${n.priority==='urgent'?'urgent':''}`}>{n.priority==='urgent'?'!':<Megaphone size={15}/>}</span><div className="notice-copy"><b>{n.title}</b><p>{n.body}</p><small>Posted by {n.profiles?.full_name||'Campus admin'} · {relativeTime(n.created_at)}</small></div><MoreHorizontal size={17} className="notice-more"/></div>) : <div className="broadcast-empty"><span className="soft-icon"><Megaphone size={17}/></span><div><b>{notices.isLoading?'Gathering campus updates…':'Your campus bulletin'}</b><p>{backendConfigured&&user?'Published notices will find a home here.':'Connect your campus to see official updates and announcements.'}</p></div></div>}</div>
-        <div className="section-title-row section-spaced"><div><div className="eyebrow">READY WHEN YOU ARE</div><h2>Pinned resources</h2></div><Link to="/library" className="text-button">Browse library <ArrowRight size={14}/></Link></div>
-        <ResourceRow resources={resources.data??[]} loading={resources.isLoading}/>
+        <div className="section-title-row section-spaced"><div><div className="eyebrow" style={{display:'flex',alignItems:'center',gap:'4px'}}><Pin size={11} fill="currentColor"/> {pinnedResources.data?.some((r:any)=>r.is_pinned)?'CAMPUS PINNED':'FEATURED RESOURCES'}</div><h2>Pinned resources</h2></div><Link to="/library" className="text-button">Browse library <ArrowRight size={14}/></Link></div>
+        <ResourceRow resources={pinnedResources.data??[]} loading={pinnedResources.isLoading}/>
       </section>
       <aside className="dashboard-side-col">
         <div className="welcome-small-card glass-panel"><div className="small-card-top"><span className="mini-orb"><Sparkles size={18}/></span><span className="small-label">CLASSFLOW COPILOT</span></div><h3>Find what you need<br/>for your next class.</h3><p>Search original study material from your campus by topic, subject or semester.</p><Link to="/copilot" className="button button-primary full-button">Ask Copilot <Search size={15}/></Link></div>
@@ -297,7 +307,7 @@ function Dashboard({user}:{user:Profile|null}) {
     {(!backendConfigured||!user)&&<div className="dashboard-connect glass-panel"><span className="connect-spark"><GraduationCap size={20}/></span><div><b>Make this space yours</b><p>Set up your campus connection and sign in to bring your classes, people and resources together.</p></div><Link to={backendConfigured?'/auth':'/settings'} className="button button-secondary compact">{backendConfigured?'Get started':'Setup guide'} <ArrowRight size={14}/></Link></div>}
   </>;
 }
-function ResourceRow({resources,loading}:{resources:any[];loading:boolean}) { if (loading) return <div className="resource-row"><div className="skeleton-card"/><div className="skeleton-card"/><div className="skeleton-card"/></div>; if (!resources.length) return <div className="empty-card"><span className="soft-icon"><BookOpen size={17}/></span><div><b>No resources to show just yet</b><p>Share a useful class document or explore what your campus has uploaded.</p></div><Link to="/upload" className="text-button">Share a resource <ArrowRight size={14}/></Link></div>; return <div className="resource-row">{resources.map(r=><Link to={`/library?resource=${r.id}`} className="resource-tile glass-panel" key={r.id}><span className="resource-file-icon"><FileText size={17}/></span><span className="resource-tile-title">{r.title}</span><small>{r.category} · {r.resource_files?.length||0} files</small><span className="tile-arrow"><ArrowRight size={13}/></span></Link>)}</div>; }
+function ResourceRow({resources,loading}:{resources:any[];loading:boolean}) { if (loading) return <div className="resource-row"><div className="skeleton-card"/><div className="skeleton-card"/><div className="skeleton-card"/></div>; if (!resources.length) return <div className="empty-card"><span className="soft-icon"><BookOpen size={17}/></span><div><b>No pinned resources to show just yet</b><p>Campus admins and subadmins can pin important class documents from the library.</p></div><Link to="/library" className="text-button">Browse library <ArrowRight size={14}/></Link></div>; return <div className="resource-row">{resources.map(r=><Link to={`/library?resource=${r.id}`} className="resource-tile glass-panel" key={r.id}><span className="resource-file-icon">{r.is_pinned?<Pin size={15} fill="#f59e0b" color="#f59e0b"/>:<FileText size={17}/>}</span><span className="resource-tile-title">{r.title}</span><small>{r.category}{r.is_pinned?' · 📌 Pinned':''} · {r.resource_files?.length||0} files</small><span className="tile-arrow"><ArrowRight size={13}/></span></Link>)}</div>; }
 
 function LibraryPage({user}:{user:Profile|null}) {
   const [q,setQ]=useState('');const safeQuery=q.trim().replace(/[^\p{L}\p{N}\s_-]/gu,''); const [category,setCategory]=useState(''); const [sort,setSort]=useState('newest'); const [filterOpen,setFilterOpen]=useState(false);const [branchFilter,setBranchFilter]=useState('');const [semesterFilter,setSemesterFilter]=useState('');const [subjectFilter,setSubjectFilter]=useState('');
@@ -314,7 +324,12 @@ function LibraryPage({user}:{user:Profile|null}) {
   </>;
 }
 function ResourceCard({resource:r,user}:{resource:Resource;user:Profile|null}) {
-  const [busy,setBusy]=useState(false);const [saved,setSaved]=useState(false);const [coverUrl,setCoverUrl]=useState<string|null>(null);const queryClient=useQueryClient();const own=r.profiles?.classflow_id===user?.classflow_id;const canManage=own||user?.role==='admin'||Boolean(user?.permissions?.some(p=>['resources.manage','resources.edit'].includes(p)));const canDelete=own||user?.role==='admin'||Boolean(user?.permissions?.some(p=>['resources.manage','resources.delete'].includes(p)));
+  const [busy,setBusy]=useState(false);const [saved,setSaved]=useState(false);const [coverUrl,setCoverUrl]=useState<string|null>(null);const [isPinned,setIsPinned]=useState(Boolean(r.is_pinned));const queryClient=useQueryClient();
+  const own=r.profiles?.classflow_id===user?.classflow_id;
+  const canPin=user?.role==='admin'||user?.role==='subadmin';
+  const canManage=own||user?.role==='admin'||Boolean(user?.permissions?.some(p=>['resources.manage','resources.edit'].includes(p)));
+  const canDelete=own||user?.role==='admin'||Boolean(user?.permissions?.some(p=>['resources.manage','resources.delete'].includes(p)));
+  useEffect(()=>{setIsPinned(Boolean(r.is_pinned));},[r.is_pinned]);
   useEffect(()=>{if(!supabase||!user)return;void requireBackend().from('bookmarks').select('resource_id').eq('resource_id',r.id).eq('user_id',user.id).maybeSingle().then(({data})=>setSaved(Boolean(data)));},[r.id,user?.id]);
   const isImageFile=(file:any)=>file?.mime_type?.toLowerCase().startsWith('image/')||/\.(png|jpe?g|gif|webp)$/i.test(file?.original_name||'');
   const coverFile=r.resource_files?.find(isImageFile)||r.resource_files?.[0];
@@ -324,17 +339,34 @@ function ResourceCard({resource:r,user}:{resource:Resource;user:Profile|null}) {
   async function download(file:{original_name:string;storage_path:string}){setBusy(true);try{const url=await signedUrl(file,true);if(url){if(user)await requireBackend().from('resource_downloads').insert({resource_id:r.id,user_id:user.id});const a=document.createElement('a');a.href=url;a.download=file.original_name;a.rel='noreferrer';a.click();}}catch(e){toast(e instanceof Error?e.message:'Download could not be prepared.');}finally{setBusy(false);}}
   async function preview(file:{original_name:string;storage_path:string}){const previewWindow=window.open('about:blank','_blank');if(previewWindow)previewWindow.opener=null;setBusy(true);try{const url=await signedUrl(file,false);if(url){if(previewWindow)previewWindow.location.href=url;else window.location.assign(url);}else previewWindow?.close();}catch(e){previewWindow?.close();toast(e instanceof Error?e.message:'Preview could not be prepared.');}finally{setBusy(false);}}
   async function toggleBookmark(){if(!supabase||!user){toast('Sign in to save resources to your collection.');return;}const db=requireBackend();const response=saved?await db.from('bookmarks').delete().eq('resource_id',r.id).eq('user_id',user.id):await db.from('bookmarks').insert({resource_id:r.id,user_id:user.id});if(response.error){toast(response.error.message);return;}setSaved(!saved);await queryClient.invalidateQueries({queryKey:['dashboard-resources']});toast(saved?'Removed from saved resources.':'Saved to your collection.');}
+  async function togglePin(){
+    if(!supabase||!user||!canPin)return;
+    try{
+      const {data,error}=await requireBackend().rpc('toggle_pin_resource',{target_resource_id:r.id});
+      if(error)throw error;
+      setIsPinned(Boolean(data));
+      await Promise.all([
+        queryClient.invalidateQueries({queryKey:['resources']}),
+        queryClient.invalidateQueries({queryKey:['dashboard-pinned-resources']}),
+        queryClient.invalidateQueries({queryKey:['admin-resources']}),
+      ]);
+      toast(data?'Resource pinned to campus front page! 📌':'Resource unpinned from front page.');
+    }catch(err){
+      toast(err instanceof Error?err.message:'Could not update pin state.');
+    }
+  }
   async function removeResource(){if(!supabase||!user||!canDelete||!window.confirm('Move this resource to the campus archive? You can ask an administrator to restore it.'))return;const {error}=await requireBackend().from('resources').update({deleted_at:new Date().toISOString()}).eq('id',r.id);if(error){toast(error.message);return;}await queryClient.invalidateQueries({queryKey:['resources']});toast('Resource archived.');}
   const first=r.resource_files?.[0];const isImage=Boolean(coverFile&&isImageFile(coverFile));
   return <motion.article layout initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} className="resource-card glass-panel">
     <div className="resource-cover">
+      {isPinned&&<span className="resource-cover-pinned"><Pin size={11} fill="currentColor"/> Pinned</span>}
       {coverUrl&&isImage?<button type="button" className="resource-cover-preview" aria-label={`Preview ${coverFile?.original_name}`} onClick={()=>coverFile&&void preview(coverFile)}><img src={coverUrl} alt={coverFile?.original_name||'Resource preview'} loading="lazy"/></button>:<div className={`resource-cover-placeholder ${isImage?'image-unavailable':''}`}><span className="cover-file-icon">{iconFor(coverFile?.original_name||'pdf')}</span><b>{isImage?'IMAGE PREVIEW':(coverFile?.mime_type?.split('/').pop()||'DOCUMENT').replace('vnd.','').replaceAll('.',' ').toUpperCase()}</b><small>{coverFile?.original_name||'No attached file'}</small></div>}
       <span className="resource-cover-category">{r.category}{r.assignment_type?` · ${r.assignment_type}`:''}</span>
       <button className={`resource-cover-bookmark ${saved?'saved':''}`} title={saved?'Remove bookmark':'Bookmark resource'} aria-label={saved?'Remove bookmark':'Bookmark resource'} onClick={()=>void toggleBookmark()}><Bookmark size={15} fill={saved?'currentColor':'none'}/></button>
       {(r.resource_files?.length||0)>1&&<span className="resource-cover-count">+{r.resource_files!.length-1} more</span>}
     </div>
     <div className="resource-card-body"><h3>{r.title}</h3><p className="resource-description">{r.description||'A class resource shared with the campus community.'}</p><div className="resource-meta"><span>{r.profiles?.full_name||'Campus member'}</span><i/><span>{relativeTime(r.created_at)}</span></div>
-      <div className="resource-card-footer"><span className="file-count"><FileText size={13}/>{r.resource_files?.length??0} {r.resource_files?.length===1?'file':'files'}{r.page_count?` · ${r.page_count} pages`:''}</span><div className="resource-actions">{r.external_url&&<a href={r.external_url} target="_blank" rel="noreferrer" className="small-action" aria-label="Open cloud link" title="Open Google Drive / Cloud Link"><ExternalLink size={13}/>Drive</a>}{first&&<><button className="small-action" onClick={()=>void preview(first)} disabled={busy} aria-label="Preview resource"><Eye size={13}/>Preview</button><button className="small-action" onClick={()=>void download(first)} disabled={busy} aria-label="Download resource"><ArrowDownToLine size={13}/>{busy?'…':'Download'}</button></>}{canManage&&<Link to={`/upload?edit=${r.id}`} className="small-action" aria-label="Edit resource"><Pencil size={14}/></Link>}{canDelete&&<button className="small-action danger-action" aria-label="Archive resource" onClick={()=>void removeResource()}><Trash2 size={13}/></button>}</div></div>
+      <div className="resource-card-footer"><span className="file-count"><FileText size={13}/>{r.resource_files?.length??0} {r.resource_files?.length===1?'file':'files'}{r.page_count?` · ${r.page_count} pages`:''}</span><div className="resource-actions">{r.external_url&&<a href={r.external_url} target="_blank" rel="noreferrer" className="small-action" aria-label="Open cloud link" title="Open Google Drive / Cloud Link"><ExternalLink size={13}/>Drive</a>}{first&&<><button className="small-action" onClick={()=>void preview(first)} disabled={busy} aria-label="Preview resource"><Eye size={13}/>Preview</button><button className="small-action" onClick={()=>void download(first)} disabled={busy} aria-label="Download resource"><ArrowDownToLine size={13}/>{busy?'…':'Download'}</button></>}{canPin&&<button className={`small-action pin-action ${isPinned?'is-pinned':''}`} onClick={()=>void togglePin()} title={isPinned?'Unpin from front page':'Pin to campus front page'} aria-label={isPinned?'Unpin from home':'Pin to home'}>{isPinned?<PinOff size={13}/>:<Pin size={13}/>}{isPinned?'Pinned':'Pin'}</button>}{canManage&&<Link to={`/upload?edit=${r.id}`} className="small-action" aria-label="Edit resource"><Pencil size={14}/></Link>}{canDelete&&<button className="small-action danger-action" aria-label="Archive resource" onClick={()=>void removeResource()}><Trash2 size={13}/></button>}</div></div>
       {r.resource_files?.length?<details className="attached-files"><summary>{r.resource_files.length} attached {r.resource_files.length===1?'file':'files'} <ChevronDown size={12}/></summary><div>{r.resource_files.map(f=><button key={f.id} onClick={()=>void download(f)}><span className="attached-file-icon">{iconFor(f.original_name)}</span><span>{f.original_name}</span><small>{prettySize(f.size_bytes)}</small><ArrowDownToLine size={13}/></button>)}</div></details>:null}
     </div>
   </motion.article>;
@@ -345,51 +377,86 @@ function CopilotPage({user}:{user:Profile|null}) {
     e.preventDefault();
     const text=question.trim();
     if(text.length<2){setError('Enter a little more to search or ask.');return;}
-    if(!supabase||!user){setError(!backendConfigured?'Connect Supabase to enable ClassFlow Copilot.':'Sign in to use ClassFlow Copilot.');return;}
     setLoading(true);setError('');
     try {
-      const {data,error:invokeError}=await requireBackend().functions.invoke('copilot',{body:{query:text}});
-      if(invokeError)throw invokeError;
-      if(data?.error)throw new Error(data.error);
-      setResult(data);
-      setHistory(old=>[text,...old.filter(h=>h!==text)].slice(0,5));
-      setQuestion('');
-    } catch(err) {
-      // Client-side fallback: search campus resources directly
-      try {
-        const {data:fallbackResources}=await requireBackend().from('resources')
-          .select('id, title, description, category, unit_module, external_url, resource_files(id, original_name, mime_type, size_bytes)')
-          .or(`title.ilike.%${text}%,description.ilike.%${text}%,unit_module.ilike.%${text}%`)
-          .eq('is_published',true)
-          .is('deleted_at',null)
-          .limit(5);
-
-        if(fallbackResources&&fallbackResources.length>0){
-          setResult({
-            route:'academic',
-            answer:`Found ${fallbackResources.length} matching campus resources in your library for "${text}":`,
-            matches:fallbackResources.map(r=>({
-              id:r.id,
-              title:r.title,
-              description:r.description,
-              category:r.category,
-              unit_module:r.unit_module,
-              external_url:r.external_url,
-              files:(r.resource_files||[]).map((f:any)=>({
-                id:f.id,
-                name:f.original_name,
-                mime_type:f.mime_type,
-                size_bytes:f.size_bytes,
-              }))
-            }))
-          });
-          setHistory(old=>[text,...old.filter(h=>h!==text)].slice(0,5));
-          setQuestion('');
-          return;
+      let data:any=null;
+      // Tier 1: Call Supabase edge function
+      if(supabase&&user){
+        try{
+          const {data:edgeData,error:edgeErr}=await requireBackend().functions.invoke('copilot',{body:{query:text}});
+          if(!edgeErr&&edgeData?.answer){
+            data=edgeData;
+          }
+        }catch(e){
+          console.warn('Edge function invoke skipped:',e);
         }
-      } catch {
-        // Fallback search also failed
       }
+
+      // Tier 2: Resilient Free AI engine (Pollinations OpenAI format, unlimited 10k+ requests/day free)
+      if(!data||!data.answer){
+        try{
+          const sysPrompt="You are ClassFlow Copilot, an expert AI academic tutor for college and university students. Answer the student's question accurately, concisely, and helpfully with clear explanations, bullet points, and practical tips. Respond in the language used by the student (English, Hindi, or Hinglish).";
+          const aiResp=await fetch('https://text.pollinations.ai/openai/chat/completions',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({
+              model:'openai',
+              temperature:0.35,
+              max_tokens:1200,
+              messages:[
+                {role:'system',content:sysPrompt},
+                {role:'user',content:text}
+              ]
+            })
+          });
+          if(aiResp.ok){
+            const aiJson=await aiResp.json();
+            const content=aiJson.choices?.[0]?.message?.content;
+            if(content&&typeof content==='string'&&content.trim()){
+              let campusMatches:any[]=[];
+              try{
+                if(supabase){
+                  const cleanTerms=text.replace(/[^\w\s]/g,' ').split(/\s+/).filter(t=>t.length>2).slice(0,3);
+                  if(cleanTerms.length>0){
+                    const orClauses=cleanTerms.map(t=>`title.ilike.%${t}%,description.ilike.%${t}%,unit_module.ilike.%${t}%`).join(',');
+                    const {data:found}=await requireBackend().from('resources')
+                      .select('id, title, description, category, unit_module, external_url, resource_files(id, original_name, mime_type, size_bytes, storage_path)')
+                      .or(orClauses)
+                      .eq('is_published',true)
+                      .is('deleted_at',null)
+                      .limit(4);
+                    campusMatches=(found??[]).map(r=>({
+                      id:r.id,
+                      title:r.title,
+                      description:r.description,
+                      category:r.category,
+                      unit_module:r.unit_module,
+                      external_url:r.external_url,
+                      files:(r.resource_files||[]).map((f:any)=>({id:f.id,name:f.original_name,mime_type:f.mime_type,size_bytes:f.size_bytes}))
+                    }));
+                  }
+                }
+              }catch(e){}
+              data={
+                route:campusMatches.length>0?'academic':'general',
+                answer:content.trim(),
+                matches:campusMatches,
+              };
+            }
+          }
+        }catch(e){
+          console.error('Free AI tier error:',e);
+        }
+      }
+
+      if(data&&data.answer){
+        setResult(data);
+        setHistory(old=>[text,...old.filter(h=>h!==text)].slice(0,5));
+        setQuestion('');
+      } else {
+        throw new Error('Could not connect to AI tutor. Please check your internet connection.');
+      }
+    } catch(err) {
       setError(err instanceof Error?err.message:'Copilot could not complete that request. Please try again.');
     } finally {
       setLoading(false);
@@ -398,12 +465,12 @@ function CopilotPage({user}:{user:Profile|null}) {
   const suggestions=['Find notes on data structures','Show me semester 3 PYQs','Explain binary search trees with an example','Ohm\'s law and circuit formulas'];
   return <><PageHeading eyebrow="AI ACADEMIC COPILOT" title="ClassFlow Copilot" description="Ask any study question or search your campus library. Copilot gives you smart explanations and links to class notes."/><BackendGate user={user} feature="AI-powered academic search"/>
     <div className="copilot-shell"><div className="copilot-intro"><span className="copilot-orb"><Sparkles size={21}/></span><div><b>What do you need help with?</b><p>Ask concept questions, formulas, or search for campus notes and PYQs.</p></div><span className="route-chip"><i/> AI + Campus Library</span></div>
-      <form className="copilot-form" onSubmit={ask}><Search size={18}/><input value={question} onChange={e=>setQuestion(e.target.value)} placeholder="e.g. Explain recursion or find semester 3 notes" aria-label="Ask ClassFlow Copilot"/><button className="button button-primary compact" type="submit" disabled={loading||!backendConfigured||!user}>{loading?<RefreshCw className="spin" size={15}/>:<>Ask <ArrowRight size={14}/></>}</button></form>
+      <form className="copilot-form" onSubmit={ask}><Search size={18}/><input value={question} onChange={e=>setQuestion(e.target.value)} placeholder="e.g. Explain recursion or find semester 3 notes" aria-label="Ask ClassFlow Copilot"/><button className="button button-primary compact" type="submit" disabled={loading}>{loading?<RefreshCw className="spin" size={15}/>:<>Ask <ArrowRight size={14}/></>}</button></form>
       {error&&<div className="copilot-error"><AlertCircle size={15}/>{error}</div>}
       {!result&&!loading&&<div className="suggestions"><span>TRY ASKING</span>{suggestions.map(s=><button key={s} onClick={()=>setQuestion(s)}>{s}<ArrowRight size={12}/></button>)}</div>}
       {loading&&<div className="copilot-loading"><span className="loading-pulse"><Sparkles size={17}/></span><div><b>Thinking & Searching…</b><small>Consulting AI tutor and scanning campus library materials.</small></div></div>}
       {result&&<section className="copilot-result"><div className="result-heading"><span className="result-route-icon">{result.matches?.length>0?<Library size={15}/>:<Sparkles size={15}/>}</span><div><span className="eyebrow">{result.matches?.length>0?'CAMPUS RESOURCES & AI TUTOR':'AI STUDY TUTOR'}</span><h2>{result.matches?.length>0?'Campus Notes & Concept Guide':'Study Explanation'}</h2></div><button className="text-button" onClick={()=>setResult(null)}>Clear <X size={13}/></button></div>
-        {result.answer&&<div className="general-answer glass-panel" style={{whiteSpace:'pre-wrap',lineHeight:'1.65'}}><div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'10px',color:'var(--brand)'}}><Sparkles size={16}/><b>ClassFlow Copilot AI</b></div><p>{result.answer}</p><small style={{display:'block',marginTop:'12px',opacity:0.75}}>AI academic response · Verify key syllabus requirements with your course faculty.</small></div>}
+        {result.answer&&<div className="general-answer glass-panel"><div className="general-answer-header"><Sparkles size={16}/><span>ClassFlow Copilot AI Tutor</span></div><div className="general-answer-body readable-text"><p>{result.answer}</p></div><small className="general-answer-footer">AI academic response · Verify key syllabus requirements with your course faculty.</small></div>}
         {result.matches?.length>0&&<div style={{marginTop:'20px'}}><div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'12px',fontWeight:600}}><Library size={16}/><span>Campus Study Materials ({result.matches.length})</span></div><div className="copilot-matches">{result.matches.map((m:any)=><article className="copilot-match glass-panel" key={m.id||m.chunk_id}><div className="match-top"><span className="resource-file-icon"><FileText size={15}/></span><span className="category-pill">{m.category||m.resource_category||'Notes'}</span><span className="match-score">Campus Resource</span></div><h3>{m.title||m.resource_title}</h3><div className="match-meta"><span>{m.unit_module||m.subject_name||'General'}</span><i/><span>{m.uploader||m.uploader_name||'Campus member'}</span></div>{m.description&&<p className="match-excerpt">{m.description}</p>}{m.files?.length>0&&<div className="match-files">{m.files.map((f:any)=><a key={f.id} href={f.signed_url||undefined} target="_blank" rel="noreferrer" className={!f.signed_url?'disabled':''}><FileText size={13}/>{f.name}{f.size_bytes?<small>{prettySize(f.size_bytes)}</small>:null}<ArrowDownToLine size={13}/></a>)}</div>}{m.external_url&&<div style={{marginTop:'8px'}}><a href={m.external_url} target="_blank" rel="noreferrer" className="text-button" style={{fontSize:'13px',display:'inline-flex',alignItems:'center',gap:'4px'}}>Open Cloud / Drive Link <ExternalLink size={13}/></a></div>}</article>)}</div></div>}
       </section>}
       {history.length>0&&<div className="copilot-history"><span>RECENT SEARCHES</span>{history.map((h,i)=><button key={`${h}-${i}`} onClick={()=>setQuestion(h)}><Clock3 size={12}/>{h}<ArrowUpRightIcon/></button>)}</div>}
@@ -631,6 +698,13 @@ function AdminPage({user}:{user:Profile|null}) {
   const notices=useQuery({queryKey:['admin-notices'],enabled:!!supabase&&!!user&&(isAdmin||user.permissions?.includes('notices.manage')),queryFn:async()=>{const {data,error}=await requireBackend().from('notices').select('id,title,body,priority,is_published,created_at').order('created_at',{ascending:false}).limit(100);if(error)throw error;return data??[];}});
   async function savePermissions(e:FormEvent){e.preventDefault();if(!target)return;const {error}=await requireBackend().rpc('set_user_role',{target_user:target,target_role:selectedRole,permissions:selectedRole==='subadmin'?selectedPermissions:[]});if(error){toast(error.message);return;}await Promise.all([people.refetch(),targetPermissionRows.refetch()]);toast(selectedRole==='subadmin'?'Subadmin role and permissions saved.':`Member role set to ${selectedRole}.`);}
   async function removeSubadmin(id:string){if(!window.confirm('Remove this user’s Subadmin role and permissions?'))return;const {error}=await requireBackend().rpc('set_user_role',{target_user:id,target_role:'student',permissions:[]});if(error){toast(error.message);return;}await Promise.all([people.refetch(),queryClient.invalidateQueries({queryKey:['admin-user-permissions',id]})]);toast('Subadmin access removed.');}
+  async function quickMakeSubadmin(id:string){
+    const defaultPerms = ['resources.manage','resources.edit','notices.manage','academic.manage'];
+    const {error}=await requireBackend().rpc('set_user_role',{target_user:id,target_role:'subadmin',permissions:defaultPerms});
+    if(error){toast(error.message);return;}
+    await Promise.all([people.refetch(),queryClient.invalidateQueries({queryKey:['admin-user-permissions',id]})]);
+    toast('Promoted to Subadmin with core duties! 🛡️');
+  }
   async function addBranch(e:FormEvent){e.preventDefault();const {error}=await requireBackend().from('branches').insert({name:branchName.trim(),code:branchCode.trim()||null});if(error){toast(error.message);return;}setBranchName('');setBranchCode('');await Promise.all([branches.refetch(),filterInvalidation()]);toast('Branch added.');}
   async function filterInvalidation(){await queryClient.invalidateQueries({queryKey:['branches']});}
   async function addSemester(e:FormEvent){e.preventDefault();const {error}=await requireBackend().from('semesters').insert({name:semesterName.trim(),number:Number(semesterNumber)});if(error){toast(error.message);return;}setSemesterName('');setSemesterNumber('');await semesters.refetch();await queryClient.invalidateQueries({queryKey:['semesters']});toast('Semester added.');}
@@ -642,7 +716,34 @@ function AdminPage({user}:{user:Profile|null}) {
   return <><PageHeading eyebrow="CAMPUS MANAGEMENT" title="Admin studio" description="A thoughtful workspace for maintaining your campus community." action={<span className="admin-role-pill"><ShieldCheck size={14}/>{isAdmin?'Administrator':'Subadmin'}</span>}/>
     <div className="admin-tabs">{[['overview','Overview'],...(isAdmin?[['people','People & roles']]:[]),...(canAcademic?[['academic','Academic setup']]:[]),...(canNotices?[['notices','Notices']]:[]),...(canResources?[['resources','Resources']]:[])].map(([id,label])=><button key={id} className={tab===id?'active':''} onClick={()=>setTab(id)}>{label}</button>)}</div>
     {tab==='overview'&&<><CampusUsersDonutChart people={people.data ?? []} onSelectRoleFilter={(r)=>{setTab('people');setSelectedRole(r);}} /><div className="admin-overview-grid"><button className="admin-overview-card glass-panel" onClick={()=>setTab(isAdmin?'people':'resources')}><span><Users size={18}/></span><b>People & Subadmins</b><small>{isAdmin?'Appoint Subadmins & manage duties.':'Your assigned moderator scope.'}</small><ArrowRight size={14}/></button><button className="admin-overview-card glass-panel" onClick={()=>setTab(canAcademic?'academic':'overview')}><span><GraduationCap size={18}/></span><b>Academic catalogue</b><small>{canAcademic?'Manage branches, semesters and subjects.':'Academic setup access is not assigned.'}</small><ArrowRight size={14}/></button><button className="admin-overview-card glass-panel" onClick={()=>setTab(canResources?'resources':'overview')}><span><BookOpen size={18}/></span><b>Resource moderation</b><small>{canResources?'Review recent campus resources.':'Resource moderation access is not assigned.'}</small><ArrowRight size={14}/></button><Link to="/settings" className="admin-overview-card glass-panel"><span><Settings size={18}/></span><b>Integrations</b><small>Check setup status and server-side configuration guidance.</small><ArrowRight size={14}/></Link></div><div className="inline-notice"><ShieldCheck size={17}/><span><b>Privileged actions are protected server-side.</b> Role and permission checks are enforced by Postgres RLS and the security-definer admin RPC.</span></div></>}
-    {tab==='people'&&isAdmin&&<div className="admin-section-grid"><section className="admin-panel glass-panel"><div className="admin-panel-heading"><div><span className="eyebrow">SUBADMIN & ROLES STUDIO</span><h2>Appoint Subadmin & Assign Duties</h2><p>Promote a campus member to Subadmin and select their specific work areas.</p></div></div><form onSubmit={savePermissions} className="admin-form"><label className="field"><span>Campus member</span><select value={target} onChange={e=>setTarget(e.target.value)} required><option value="">Choose a member</option>{people.data?.filter((p:any)=>p.id!==user?.id).map((p:any)=><option key={p.id} value={p.id}>{p.full_name} · @{p.username} · {p.classflow_id} [{p.role?.toUpperCase()||'STUDENT'}]</option>)}</select></label><label className="field"><span>Role to assign</span><select value={selectedRole} onChange={e=>setSelectedRole(e.target.value)}><option value="student">Student (Standard Access)</option><option value="subadmin">Subadmin (Campus Moderator)</option><option value="admin">Administrator (Full Access)</option></select></label>{selectedRole==='subadmin'&&<div style={{marginTop:'12px'}}><span className="field-label" style={{fontSize:'12px',fontWeight:600,display:'block',marginBottom:'6px'}}>Assigned Subadmin Duties & Work Scope</span><div className="duty-preset-buttons"><button type="button" className="duty-preset-btn" onClick={()=>applyDutyPreset('academic')}>📚 Content Moderator</button><button type="button" className="duty-preset-btn" onClick={()=>applyDutyPreset('comms')}>📢 Broadcasts Lead</button><button type="button" className="duty-preset-btn" onClick={()=>applyDutyPreset('all')}>🛡️ Full Scope</button><button type="button" className="duty-preset-btn" onClick={()=>applyDutyPreset('clear')} style={{opacity:0.7}}>Clear</button></div><div className="subadmin-work-grid">{dutyCategories.map(cat=>{const checked=cat.perms.every(p=>selectedPermissions.includes(p));return (<div key={cat.key} className={`duty-checkbox-card ${checked?'checked':''}`} onClick={()=>toggleDutyCategory(cat.perms)}><input type="checkbox" checked={checked} onChange={()=>{}} style={{marginTop:'3px'}}/><div className="duty-copy"><div style={{display:'flex',alignItems:'center',gap:'6px'}}>{cat.icon}<b>{cat.name}</b></div><small>{cat.desc}</small></div></div>);})}</div></div>}<button className="button button-primary compact" disabled={!target||targetPermissionRows.isFetching} style={{marginTop:'10px'}}>Save Subadmin Duties <Check size={14}/></button></form></section><section className="admin-panel glass-panel"><div className="admin-panel-heading"><div><span className="eyebrow">CAMPUS DIRECTORY & SUBADMINS</span><h2>Active Members ({people.data?.length??0})</h2><p>List of campus accounts and appointed moderators.</p></div></div><div className="admin-people-list">{people.data?.map((p:any)=>{const isSub=p.role==='subadmin';return (<div className="admin-person-row" key={p.id} style={{padding:'10px 12px'}}><Avatar name={p.full_name} small/><div style={{flex:1,minWidth:0}}><div style={{display:'flex',alignItems:'center',gap:'8px'}}><b>{p.full_name}</b><span className={`status-pill ${p.role==='admin'?'urgent':isSub?'connected':'normal'}`} style={{fontSize:'8px',padding:'2px 6px'}}>{p.role?.toUpperCase()||'STUDENT'}</span></div><small style={{color:'var(--taupe)'}}>@{p.username} · {p.classflow_id}</small></div>{isSub&&<div style={{display:'flex',alignItems:'center',gap:'6px'}}><button type="button" className="text-button" onClick={()=>{setTarget(p.id);setSelectedRole('subadmin');}} style={{fontSize:'11px',gap:'3px'}} title="Edit assigned duties"><Pencil size={12}/> Edit</button><button type="button" className="text-button" onClick={()=>void removeSubadmin(p.id)} style={{fontSize:'11px',color:'#ef4444',gap:'3px'}} title="Revoke Subadmin role"><X size={13}/> Revoke</button></div>}</div>);})}</div></section></div>}
+    {tab==='people'&&isAdmin&&<div className="admin-section-grid"><section className="admin-panel glass-panel"><div className="admin-panel-heading"><div><span className="eyebrow">SUBADMIN & ROLES STUDIO</span><h2>Appoint Subadmin & Assign Duties</h2><p>Promote a campus member to Subadmin and select their specific work areas.</p></div></div><form onSubmit={savePermissions} className="admin-form"><label className="field"><span>Campus member</span><select value={target} onChange={e=>setTarget(e.target.value)} required><option value="">Choose a member</option>{people.data?.filter((p:any)=>p.id!==user?.id).map((p:any)=><option key={p.id} value={p.id}>{p.full_name} · @{p.username} · {p.classflow_id} [{p.role?.toUpperCase()||'STUDENT'}]</option>)}</select></label><label className="field"><span>Role to assign</span><select value={selectedRole} onChange={e=>setSelectedRole(e.target.value)}><option value="student">Student (Standard Access)</option><option value="subadmin">Subadmin (Campus Moderator)</option><option value="admin">Administrator (Full Access)</option></select></label>{selectedRole==='subadmin'&&<div style={{marginTop:'12px'}}><span className="field-label" style={{fontSize:'12px',fontWeight:600,display:'block',marginBottom:'6px'}}>Assigned Subadmin Duties & Work Scope</span><div className="duty-preset-buttons"><button type="button" className="duty-preset-btn" onClick={()=>applyDutyPreset('academic')}>📚 Content Moderator</button><button type="button" className="duty-preset-btn" onClick={()=>applyDutyPreset('comms')}>📢 Broadcasts Lead</button><button type="button" className="duty-preset-btn" onClick={()=>applyDutyPreset('all')}>🛡️ Full Scope</button><button type="button" className="duty-preset-btn" onClick={()=>applyDutyPreset('clear')} style={{opacity:0.7}}>Clear</button></div><div className="subadmin-work-grid">{dutyCategories.map(cat=>{const checked=cat.perms.every(p=>selectedPermissions.includes(p));return (<div key={cat.key} className={`duty-checkbox-card ${checked?'checked':''}`} onClick={()=>toggleDutyCategory(cat.perms)}><input type="checkbox" checked={checked} onChange={()=>{}} style={{marginTop:'3px'}}/><div className="duty-copy"><div style={{display:'flex',alignItems:'center',gap:'6px'}}>{cat.icon}<b>{cat.name}</b></div><small>{cat.desc}</small></div></div>);})}</div></div>}<button className="button button-primary compact" disabled={!target||targetPermissionRows.isFetching} style={{marginTop:'10px'}}>Save Subadmin Duties <Check size={14}/></button></form></section><section className="admin-panel glass-panel"><div className="admin-panel-heading"><div><span className="eyebrow">CAMPUS DIRECTORY & SUBADMINS</span><h2>Active Members ({people.data?.length??0})</h2><p>List of campus accounts and appointed moderators.</p></div></div><div className="admin-people-list">{people.data?.map((p:any)=>{
+  const isSub=p.role==='subadmin';
+  const isAdm=p.role==='admin';
+  return (<div className="admin-person-row" key={p.id} style={{padding:'10px 12px'}}>
+    <Avatar name={p.full_name} small/>
+    <div style={{flex:1,minWidth:0}}>
+      <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+        <b>{p.full_name}</b>
+        <span className={`status-pill ${isAdm?'urgent':isSub?'connected':'normal'}`} style={{fontSize:'8px',padding:'2px 6px'}}>{p.role?.toUpperCase()||'STUDENT'}</span>
+      </div>
+      <small style={{color:'var(--taupe)'}}>@{p.username} · {p.classflow_id}</small>
+    </div>
+    {!isAdm&&p.id!==user?.id&&(
+      <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
+        {isSub?(
+          <>
+            <button type="button" className="text-button" onClick={()=>{setTarget(p.id);setSelectedRole('subadmin');}} style={{fontSize:'11px',gap:'3px'}} title="Edit assigned duties"><Pencil size={12}/> Duties</button>
+            <button type="button" className="text-button" onClick={()=>void removeSubadmin(p.id)} style={{fontSize:'11px',color:'#ef4444',gap:'3px'}} title="Revoke Subadmin role"><X size={13}/> Revoke</button>
+          </>
+        ):(
+          <button type="button" className="button button-secondary compact" onClick={()=>void quickMakeSubadmin(p.id)} style={{fontSize:'11px',padding:'4px 8px',gap:'4px'}} title="Promote to Subadmin">
+            <UserPlus size={12}/> Make Subadmin
+          </button>
+        )}
+      </div>
+    )}
+  </div>);
+})}</div></section></div>}
     {tab==='academic'&&canAcademic&&<div className="admin-section-grid"><section className="admin-panel glass-panel"><div className="admin-panel-heading"><div><span className="eyebrow">ACADEMIC STRUCTURE</span><h2>Branches & semesters</h2><p>Manage the optional campus directory and search filters.</p></div></div><form className="admin-inline-form" onSubmit={addBranch}><label className="field"><span>Branch name</span><input value={branchName} onChange={e=>setBranchName(e.target.value)} placeholder="Computer Science" required/></label><label className="field"><span>Code</span><input value={branchCode} onChange={e=>setBranchCode(e.target.value)} placeholder="CSE"/></label><button className="button button-secondary compact"><Plus size={14}/> Add branch</button></form><div className="admin-chip-list">{branches.data?.map((b:any)=><span key={b.id}>{b.name}{b.code?` · ${b.code}`:''}</span>)}</div><form className="admin-inline-form" onSubmit={addSemester}><label className="field"><span>Semester name</span><input value={semesterName} onChange={e=>setSemesterName(e.target.value)} placeholder="Semester 1" required/></label><label className="field"><span>Number</span><input type="number" min="1" value={semesterNumber} onChange={e=>setSemesterNumber(e.target.value)} placeholder="1" required/></label><button className="button button-secondary compact"><Plus size={14}/> Add semester</button></form><div className="admin-chip-list">{semesters.data?.map((s:any)=><span key={s.id}>{s.name}</span>)}</div></section><section className="admin-panel glass-panel"><div className="admin-panel-heading"><div><span className="eyebrow">SUBJECT CATALOGUE</span><h2>Manage subjects</h2><p>Subjects are scoped to a branch and semester.</p></div></div><form className="admin-form" onSubmit={addSubject}><label className="field"><span>Subject name</span><input value={subjectName} onChange={e=>setSubjectName(e.target.value)} placeholder="Data Structures" required/></label><label className="field"><span>Subject code</span><input value={subjectCode} onChange={e=>setSubjectCode(e.target.value)} placeholder="CS301"/></label><div className="auth-two"><label className="field"><span>Branch</span><select value={subjectBranch} onChange={e=>setSubjectBranch(e.target.value)} required><option value="">Choose branch</option>{branches.data?.map((b:any)=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label><label className="field"><span>Semester</span><select value={subjectSemester} onChange={e=>setSubjectSemester(e.target.value)} required><option value="">Choose semester</option>{semesters.data?.map((s:any)=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label></div><button className="button button-primary compact"><Plus size={14}/> Add subject</button></form><div className="admin-subject-list">{subjects.data?.map((s:any)=><span key={s.id}>{s.name}<small>{s.branches?.name} · {s.semesters?.name}</small></span>)}</div></section></div>}
     {tab==='notices'&&canNotices&&<div className="admin-section-grid"><section className="admin-panel glass-panel"><div className="admin-panel-heading"><div><span className="eyebrow">CAMPUS BROADCAST</span><h2>Publish a notice</h2><p>Published notices appear on the student dashboard.</p></div></div><form className="admin-form" onSubmit={addNotice}><label className="field"><span>Title</span><input value={noticeTitle} onChange={e=>setNoticeTitle(e.target.value)} maxLength={180} required placeholder="Exam schedule update"/></label><label className="field"><span>Message</span><textarea value={noticeBody} onChange={e=>setNoticeBody(e.target.value)} rows={5} maxLength={4000} required placeholder="Write the details students need to know."/></label><label className="field"><span>Priority</span><select value={noticePriority} onChange={e=>setNoticePriority(e.target.value)}><option value="normal">Normal</option><option value="important">Important</option><option value="urgent">Urgent</option></select></label><button className="button button-primary compact" disabled={noticeBusy}>{noticeBusy?<RefreshCw className="spin" size={14}/>:<Megaphone size={14}/>} Publish notice</button></form></section><section className="admin-panel glass-panel"><div className="admin-panel-heading"><div><span className="eyebrow">RECENT POSTS</span><h2>Notices</h2><p>Latest campus announcements.</p></div></div><div className="admin-people-list">{notices.data?.map((n:any)=><div className="admin-person-row" key={n.id}><span className="notice-symbol"><Megaphone size={14}/></span><span><b>{n.title}</b><small>{relativeTime(n.created_at)}</small></span><em>{n.priority}</em></div>)}</div></section></div>}
     {tab==='resources'&&canResources&&<><div className="admin-panel-heading admin-resource-heading"><div><span className="eyebrow">MODERATION</span><h2>Recent resources</h2><p>Manage resource records under your assigned permissions.</p></div><Link to="/library" className="text-button">Open library <ArrowRight size={14}/></Link></div>{adminResources.data?.length?<div className="resource-grid">{adminResources.data.map(r=><ResourceCard key={r.id} resource={r} user={user}/>)}</div>:<DataState title="No recent resources" text="Resources shared with your campus will appear here." icon={<BookOpen size={22}/>}/>}</>}
