@@ -673,8 +673,7 @@ body {
   left: 0;
   top: 0;
   width: 100%;
-  min-height: 100%;
-  overflow: hidden;
+  height: 100%;
   pointer-events: none;
   z-index: 9999;
 }
@@ -686,7 +685,7 @@ body {
   width: 0;
   height: 0;
   will-change: transform, opacity;
-  z-index: 10001;
+  z-index: 10002;
   pointer-events: none;
   transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -744,12 +743,12 @@ body {
 }
 
 .stitch-agent.click .ring {
-  animation: stitchAgentClick 0.4s ease-out forwards;
+  animation: stitchAgentClick 0.38s ease-out forwards;
 }
 
 @keyframes stitchAgentClick {
   0% { opacity: 0.95; transform: scale(0.2); }
-  100% { opacity: 0; transform: scale(1.35); }
+  100% { opacity: 0; transform: scale(1.4); }
 }
 
 .stitch-wire {
@@ -757,8 +756,8 @@ body {
   border: 1.5px solid var(--wire-color, #38bdf8);
   background: rgba(56, 189, 248, 0.08);
   pointer-events: none;
-  z-index: 10000;
-  transition: opacity 0.25s, transform 0.25s;
+  z-index: 10001;
+  transition: opacity 0.22s, transform 0.22s;
   box-shadow: 0 0 16px rgba(56, 189, 248, 0.22);
 }
 
@@ -799,18 +798,52 @@ body {
   transform: scale(0.99);
 }
 
+/* Card hidden until wireframe is drawn */
+.stitch-pending {
+  opacity: 0 !important;
+  transform: scale(0.97) !important;
+  pointer-events: none !important;
+  transition: none !important;
+}
+
+/* Card assembled & stitched spring snap */
+.stitch-assembled,
 .is-card-stitched {
-  animation: cardStitchSnap 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  animation: cardStitchSnap 0.42s cubic-bezier(0.16, 1, 0.3, 1) both !important;
 }
 
 @keyframes cardStitchSnap {
   0% {
-    transform: scale(0.985);
+    opacity: 0.15;
+    transform: scale(0.97);
   }
-  50% {
-    transform: scale(1.008);
+  60% {
+    opacity: 1;
+    transform: scale(1.014);
   }
   100% {
+    opacity: 1;
     transform: scale(1);
   }
+}
+
+/* Bulletproof centering for mobile navigation - never shifted or transformed */
+.mobile-nav {
+  position: fixed !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  margin: 0 !important;
+  z-index: 10050 !important;
+}
+
+.mobile-nav.stitch-pending,
+.mobile-nav.stitch-assembled,
+.mobile-nav.is-card-stitched {
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: translateX(-50%) !important;
+  animation: none !important;
+  pointer-events: auto !important;
 }

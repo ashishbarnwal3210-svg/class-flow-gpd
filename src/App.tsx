@@ -43,10 +43,10 @@ function useStitchEffect() {
     if (typeof window === 'undefined') return;
     stitchSwarm.init();
 
-    const selector = '.glass-panel, .resource-card, .notice-card, .dashboard-hero, .copilot-match, .general-answer, .admin-panel, .admin-overview-card, .duty-checkbox-card, .integration-card, .profile-view, .welcome-hero';
-    document.querySelectorAll<HTMLElement>(selector).forEach(el => {
-      stitchSwarm.io?.observe(el);
-    });
+    const t = setTimeout(() => {
+      stitchSwarm.scanAndStitchVisible();
+    }, 120);
+    return () => clearTimeout(t);
   }, [location.pathname]);
 }
 
@@ -214,7 +214,7 @@ function App() {
         <Route path="/settings" element={<SettingsPage user={user}/>}/>
         <Route path="*" element={<Welcome user={user}/>}/>
       </Routes></motion.div>
-      <nav className="mobile-nav glass-panel" aria-label="Main navigation">
+      <nav className="mobile-nav" aria-label="Main navigation">
         <MobileLink to="/dashboard" icon={<Home size={19}/>} label="Home"/>
         <MobileLink to="/library" icon={<BookOpen size={19}/>} label="Library"/>
         <NavLink to="/upload" aria-label="Upload resource" className={({isActive}) => `mobile-add ${isActive?'active':''}`}><Plus size={22}/></NavLink>
