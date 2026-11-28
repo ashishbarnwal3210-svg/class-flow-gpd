@@ -16,6 +16,11 @@ import { useUIStore } from './lib/ui-store';
 import { uploadPrivateResourceFile } from './lib/upload';
 import { compressImageIfNeeded } from './lib/compress-file';
 import { getAndClearSharedData } from './lib/shared-store';
+import { useThemeStore } from './lib/theme-store';
+import { AcademicCanvas3D } from './components/3d/AcademicCanvas3D';
+import { AcademicElevator3D } from './components/3d/AcademicElevator3D';
+import { Card3DTilt } from './components/3d/Card3DTilt';
+import { ThemeAndModeBar } from './components/3d/ThemeAndModeBar';
 
 type Resource = {
   id: string; title: string; description: string | null; category: string; assignment_type: string | null;
@@ -146,6 +151,7 @@ function App() {
         <div className="mobile-brand"><Link to="/" className="brand"><img className="brand-glyph" src="/classflow-mark.webp" alt=""/><span>ClassFlow</span></Link></div>
         <div className="breadcrumbs"><span>ClassFlow</span><span className="crumb-slash">/</span><b>{pageTitle}</b></div>
         <div className="top-actions">
+          <ThemeAndModeBar />
           {!isStandalone && (
             <button className="install-header-btn" onClick={handleInstallApp} title="Install ClassFlow App on your phone">
               <ArrowDownToLine size={15}/>
@@ -253,19 +259,30 @@ function PageHeading({eyebrow,title,description,action}:{eyebrow?:string;title:s
 function DataState({title='Nothing here yet',text='Once your campus is connected, information will appear here.',icon=<FolderOpen size={22}/>,action}:{title?:string;text?:string;icon?:React.ReactNode;action?:React.ReactNode}) { return <div className="empty-state"><span className="empty-icon">{icon}</span><h3>{title}</h3><p>{text}</p>{action}</div>; }
 function BackendGate({user,feature}:{user:Profile|null;feature:string}) { if (!backendConfigured) return <div className="inline-notice"><AlertCircle size={17}/><span><b>Backend setup needed.</b> {feature} becomes available after the Supabase setup in Settings.</span><Link to="/settings">Setup <ArrowRight size={14}/></Link></div>; if (!user) return <div className="inline-notice"><LockKeyhole size={17}/><span><b>Sign in to continue.</b> Your campus account keeps this space secure.</span><Link to="/auth">Sign in <ArrowRight size={14}/></Link></div>; return null; }
 
-function Welcome({user}:{user:Profile|null}) { const navigate=useNavigate(); return <div className="welcome-page">
+function Welcome({user}:{user:Profile|null}) { const navigate=useNavigate(); const uiMode=useThemeStore(s=>s.uiMode); return <div className="welcome-page">
   <section className="welcome-hero">
     <div className="welcome-copy"><div className="eyebrow"><span className="eyebrow-dot"/> A calmer campus, together</div><h1>Your academic<br/><em>life, in flow.</em></h1><p className="hero-description">One thoughtful space for class notes, campus conversations and the people who make learning better.</p>
       <div className="hero-ctas">{user?<button className="button button-primary" onClick={()=>navigate('/dashboard')}>Go to your dashboard <ArrowRight size={16}/></button>:<><button className="button button-primary" onClick={()=>navigate('/auth?mode=signup')}>Create your account <ArrowRight size={16}/></button><button className="button button-secondary" onClick={()=>navigate('/auth')}>Log in</button></>}</div>
       <div className="hero-note"><span className="note-avatars"><i>R</i><i>A</i><i>M</i></span><span>Made for your campus community</span><span className="note-dot"/></div>
     </div>
-    <div className="hero-art" aria-label="ClassFlow study space illustration"><div className="art-glow"/><div className="art-window">
-      <div className="art-window-top"><span className="art-brand">ClassFlow</span><span className="art-user">Your campus <span className="art-avatar">A</span></span></div>
-      <div className="broadcast-card"><div className="card-kicker"><Megaphone size={12}/> CAMPUS BROADCAST</div><div className="broadcast-row"><span className="priority-mark">!</span><div><b>Welcome to your academic hub</b><small>Stay close to everything happening on campus</small></div></div><div className="broadcast-row muted"><span className="blue-mark"><CalendarDays size={13}/></span><div><b>New semester, fresh possibilities</b><small>Posted by your campus community</small></div></div></div>
-      <div className="art-section-head">YOUR RECENT RESOURCES <span>View all <ArrowRight size={11}/></span></div><div className="art-files"><div className="art-file"><FileText size={17}/><b>Course notes</b><small>Shared with your class</small></div><div className="art-file"><BookMarked size={17}/><b>Study guides</b><small>Made for your semester</small></div><div className="art-file"><CalendarDays size={17}/><b>Class schedule</b><small>Always within reach</small></div></div>
-      <div className="art-bottom"><span className="art-tab active"><Home size={15}/></span><span className="art-tab"><Library size={15}/></span><span className="art-tab"><MessageCircle size={15}/></span><span className="art-tab"><UserRound size={15}/></span></div>
-    </div><span className="floating-chip chip-resource"><span><FileText size={15}/></span> Notes, shared simply</span><span className="floating-chip chip-connection"><span><Users size={14}/></span> Your people, close by</span><span className="art-sparkle"><Sparkles size={17}/></span></div>
+    <div className="hero-art" aria-label="ClassFlow study space illustration">
+      {uiMode === '3d' ? (
+        <AcademicCanvas3D />
+      ) : (
+        <><div className="art-glow"/><div className="art-window">
+          <div className="art-window-top"><span className="art-brand">ClassFlow</span><span className="art-user">Your campus <span className="art-avatar">A</span></span></div>
+          <div className="broadcast-card"><div className="card-kicker"><Megaphone size={12}/> CAMPUS BROADCAST</div><div className="broadcast-row"><span className="priority-mark">!</span><div><b>Welcome to your academic hub</b><small>Stay close to everything happening on campus</small></div></div><div className="broadcast-row muted"><span className="blue-mark"><CalendarDays size={13}/></span><div><b>New semester, fresh possibilities</b><small>Posted by your campus community</small></div></div></div>
+          <div className="art-section-head">YOUR RECENT RESOURCES <span>View all <ArrowRight size={11}/></span></div><div className="art-files"><div className="art-file"><FileText size={17}/><b>Course notes</b><small>Shared with your class</small></div><div className="art-file"><BookMarked size={17}/><b>Study guides</b><small>Made for your semester</small></div><div className="art-file"><CalendarDays size={17}/><b>Class schedule</b><small>Always within reach</small></div></div>
+          <div className="art-bottom"><span className="art-tab active"><Home size={15}/></span><span className="art-tab"><Library size={15}/></span><span className="art-tab"><MessageCircle size={15}/></span><span className="art-tab"><UserRound size={15}/></span></div>
+        </div><span className="floating-chip chip-resource"><span><FileText size={15}/></span> Notes, shared simply</span><span className="floating-chip chip-connection"><span><Users size={14}/></span> Your people, close by</span><span className="art-sparkle"><Sparkles size={17}/></span></>
+      )}
+    </div>
   </section>
+  {uiMode === '3d' && (
+    <section style={{ maxWidth: '1200px', margin: '0 auto' }}>
+      <AcademicElevator3D />
+    </section>
+  )}
   <section className="welcome-under"><div className="welcome-under-heading"><div><div className="eyebrow">Everything in its place</div><h2>A little more room to learn.</h2></div><p>Thoughtfully made for all the moving parts of college life.</p></div><div className="feature-grid">
     <Feature icon={<Library size={19}/>} title="A living library" text="Find class notes, practicals and past papers shared by your campus."/><Feature icon={<MessageCircle size={19}/>} title="Your campus, connected" text="Stay in touch with classmates and keep useful conversations together."/><Feature icon={<Sparkles size={19}/>} title="Search with context" text="Look for the right study material by subject, semester and topic."/>
   </div></section>
@@ -274,9 +291,11 @@ function Welcome({user}:{user:Profile|null}) { const navigate=useNavigate(); ret
 function Feature({icon,title,text}:{icon:React.ReactNode;title:string;text:string}) { return <article className="feature-card glass-panel"><span className="feature-icon">{icon}</span><h3>{title}</h3><p>{text}</p><ArrowRight size={15} className="feature-arrow"/></article>; }
 
 function Dashboard({user}:{user:Profile|null}) {
+  const uiMode = useThemeStore(s => s.uiMode);
   const notices = useQuery({queryKey:['notices'],enabled:!!supabase&&!!user,queryFn:async()=>{const {data,error}=await requireBackend().from('notices').select('id,title,body,priority,created_at,profiles:profiles!notices_author_id_fkey(full_name)').eq('is_published',true).order('created_at',{ascending:false}).limit(3);if(error)throw error;return data??[];}});
   const resources = useQuery({queryKey:['dashboard-resources',user?.id],enabled:!!supabase&&!!user,queryFn:async()=>{const {data,error}=await requireBackend().from('bookmarks').select('resources:resources!bookmarks_resource_id_fkey(id,title,category,created_at,resource_files(id))').eq('user_id',user!.id).order('created_at',{ascending:false}).limit(3);if(error)throw error;return (data??[]).map((row:any)=>row.resources).filter(Boolean);}});
   return <><PageHeading eyebrow="YOUR ACADEMIC HUB" title={user?`Good to see you, ${user.full_name.split(' ')[0]}.`:'Your campus, in one place.'} description="A quieter space for the things that help you move forward." action={<button className="button button-secondary compact" onClick={()=>toast('Campus notifications are not configured in this deployment yet.')}><Bell size={15}/> Notifications</button>}/>
+    {uiMode === '3d' && <AcademicElevator3D />}
     <div className="dashboard-grid">
       <section className="dashboard-main-col">
         <div className="section-title-row"><div><div className="eyebrow">STAY IN THE LOOP</div><h2>Campus broadcast</h2></div><span className="muted-hint">Latest campus updates</span></div>
@@ -321,7 +340,7 @@ function ResourceCard({resource:r,user}:{resource:Resource;user:Profile|null}) {
   async function toggleBookmark(){if(!supabase||!user){toast('Sign in to save resources to your collection.');return;}const db=requireBackend();const response=saved?await db.from('bookmarks').delete().eq('resource_id',r.id).eq('user_id',user.id):await db.from('bookmarks').insert({resource_id:r.id,user_id:user.id});if(response.error){toast(response.error.message);return;}setSaved(!saved);await queryClient.invalidateQueries({queryKey:['dashboard-resources']});toast(saved?'Removed from saved resources.':'Saved to your collection.');}
   async function removeResource(){if(!supabase||!user||!canDelete||!window.confirm('Move this resource to the campus archive? You can ask an administrator to restore it.'))return;const {error}=await requireBackend().from('resources').update({deleted_at:new Date().toISOString()}).eq('id',r.id);if(error){toast(error.message);return;}await queryClient.invalidateQueries({queryKey:['resources']});toast('Resource archived.');}
   const first=r.resource_files?.[0];const isImage=Boolean(coverFile&&isImageFile(coverFile));
-  return <motion.article layout initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} className="resource-card glass-panel">
+  return <Card3DTilt maxTilt={6}><motion.article layout initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} className="resource-card glass-panel">
     <div className="resource-cover">
       {coverUrl&&isImage?<button type="button" className="resource-cover-preview" aria-label={`Preview ${coverFile?.original_name}`} onClick={()=>coverFile&&void preview(coverFile)}><img src={coverUrl} alt={coverFile?.original_name||'Resource preview'} loading="lazy"/></button>:<div className={`resource-cover-placeholder ${isImage?'image-unavailable':''}`}><span className="cover-file-icon">{iconFor(coverFile?.original_name||'pdf')}</span><b>{isImage?'IMAGE PREVIEW':(coverFile?.mime_type?.split('/').pop()||'DOCUMENT').replace('vnd.','').replaceAll('.',' ').toUpperCase()}</b><small>{coverFile?.original_name||'No attached file'}</small></div>}
       <span className="resource-cover-category">{r.category}{r.assignment_type?` · ${r.assignment_type}`:''}</span>
@@ -332,7 +351,7 @@ function ResourceCard({resource:r,user}:{resource:Resource;user:Profile|null}) {
       <div className="resource-card-footer"><span className="file-count"><FileText size={13}/>{r.resource_files?.length??0} {r.resource_files?.length===1?'file':'files'}{r.page_count?` · ${r.page_count} pages`:''}</span><div className="resource-actions">{r.external_url&&<a href={r.external_url} target="_blank" rel="noreferrer" className="small-action" aria-label="Open cloud link" title="Open Google Drive / Cloud Link"><ExternalLink size={13}/>Drive</a>}{first&&<><button className="small-action" onClick={()=>void preview(first)} disabled={busy} aria-label="Preview resource"><Eye size={13}/>Preview</button><button className="small-action" onClick={()=>void download(first)} disabled={busy} aria-label="Download resource"><ArrowDownToLine size={13}/>{busy?'…':'Download'}</button></>}{canManage&&<Link to={`/upload?edit=${r.id}`} className="small-action" aria-label="Edit resource"><Pencil size={14}/></Link>}{canDelete&&<button className="small-action danger-action" aria-label="Archive resource" onClick={()=>void removeResource()}><Trash2 size={13}/></button>}</div></div>
       {r.resource_files?.length?<details className="attached-files"><summary>{r.resource_files.length} attached {r.resource_files.length===1?'file':'files'} <ChevronDown size={12}/></summary><div>{r.resource_files.map(f=><button key={f.id} onClick={()=>void download(f)}><span className="attached-file-icon">{iconFor(f.original_name)}</span><span>{f.original_name}</span><small>{prettySize(f.size_bytes)}</small><ArrowDownToLine size={13}/></button>)}</div></details>:null}
     </div>
-  </motion.article>;
+  </motion.article></Card3DTilt>;
 }
 function CopilotPage({user}:{user:Profile|null}) {
   const [question,setQuestion]=useState('');const [loading,setLoading]=useState(false);const [error,setError]=useState('');const [result,setResult]=useState<any|null>(null);const [history,setHistory]=useState<string[]>([]);

@@ -1,11 +1,13 @@
 {
-  "version": "1.2.8",
-  "buildTime": 1795878000000,
-  "title": "Native OS Share Target & Upgraded AI Academic Copilot",
+  "version": "1.2.9",
+  "buildTime": 1795880000000,
+  "title": "3D Spatial Campus Experience, Dark/Light Mode & Touch Selection Guard",
   "highlights": [
-    "Native OS Share Target: ClassFlow now appears in Android & device share sheets (like WhatsApp) to share PDFs, docs & photos directly into the upload queue",
-    "Upgraded AI Academic Copilot: Fast answers powered by Groq Llama 3.3 with instant fallback",
-    "Smart Dual Routing: Combines AI tutoring explanations with real-time campus notes & file matches",
-    "Client-side search resilience: Even during high-traffic or network hiccups, library search keeps working seamlessly"
+    "3D Spatial Mode with interactive Three.js floating academic artifacts (books, graduation cap, knowledge crystal)",
+    "Academic Level & Semester Elevator directly inspired by 3D architectural showcase",
+    "3D perspective card physics with dynamic specular glare on pointer & touch",
+    "Full Dark Mode & Light Mode system toggle with persistent local preference",
+    "Android Chrome Touch-to-Search suppression (no accidental Google search popups on tap)",
+    "Instant 1-click toggle between 3D Spatial and Classic Clean UI anytime"
   ]
 }

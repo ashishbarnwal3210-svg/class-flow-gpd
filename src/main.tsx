@@ -7,6 +7,7 @@ import './styles.css';
 import './append.css';
 import './liquid-glass.css';
 import './messaging.css';
+import './styles-3d.css';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -18,6 +19,20 @@ const queryClient = new QueryClient({
     },
   },
 });
+// Disable Android Chrome "Touch to Search" popups from accidental taps
+if (typeof window !== 'undefined') {
+  window.addEventListener('touchstart', (e) => {
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+    if (!target.closest('input, textarea, [contenteditable="true"], .selectable')) {
+      const sel = window.getSelection();
+      if (sel && sel.type === 'Range') {
+        sel.removeAllRanges();
+      }
+    }
+  }, { passive: true });
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode><QueryClientProvider client={queryClient}><BrowserRouter><App /></BrowserRouter></QueryClientProvider></React.StrictMode>,
 );
