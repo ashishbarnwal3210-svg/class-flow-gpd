@@ -35,7 +35,58 @@ const fileKey = (f:File) => `${f.name}:${f.size}:${f.lastModified}`;
 
 const isTestEnv = import.meta.env.MODE === 'test';
 
+function useStitchEffect() {
+  const location = useLocation();
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const selector = '.glass-panel, .resource-card, .notice-card, .dashboard-hero, .copilot-match, .general-answer, .admin-panel, .admin-overview-card, .duty-checkbox-card, .integration-card, .profile-view, .welcome-hero';
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const el = entry.target as HTMLElement;
+          if (!el.classList.contains('is-stitched') && !el.classList.contains('is-stitching')) {
+            el.classList.add('is-stitching');
+            window.setTimeout(() => {
+              el.classList.remove('is-stitching');
+              el.classList.add('is-stitched');
+            }, 500);
+          }
+          observer.unobserve(el);
+        }
+      });
+    }, {
+      rootMargin: '0px 0px -20px 0px',
+      threshold: 0.05
+    });
+
+    const scanAndObserve = () => {
+      const els = document.querySelectorAll(selector);
+      els.forEach(el => {
+        if (!el.classList.contains('is-stitched') && !el.classList.contains('is-stitching')) {
+          observer.observe(el);
+        }
+      });
+    };
+
+    scanAndObserve();
+
+    const mut = new MutationObserver(() => {
+      scanAndObserve();
+    });
+    mut.observe(document.body, { childList: true, subtree: true });
+
+    return () => {
+      observer.disconnect();
+      mut.disconnect();
+    };
+  }, [location.pathname]);
+}
+
 function App() {
+  useStitchEffect();
   const [user, setUser] = useState<Profile | null>(null);
   const [booting, setBooting] = useState(!isTestEnv && backendConfigured);
 
@@ -43,7 +94,7 @@ function App() {
     if (isTestEnv || !backendConfigured) return;
     const timer = setTimeout(() => {
       setBooting(false);
-    }, 1200);
+    }, 500);
     return () => clearTimeout(timer);
   }, []);
   const [menuOpen, setMenuOpen] = useState(false);

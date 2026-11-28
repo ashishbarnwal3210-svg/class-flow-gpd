@@ -82,7 +82,7 @@
         height: 68px;
         border-radius: 20px;
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
-        animation: loaderPulse 1.2s ease-in-out infinite alternate;
+        animation: loaderPulse 0.5s ease-in-out forwards;
       }
       .app-loader-title {
         margin-top: 16px;
@@ -103,18 +103,20 @@
       .app-loader-progress {
         position: absolute;
         height: 100%;
-        width: 45%;
+        width: 100%;
         border-radius: 6px;
         background: linear-gradient(90deg, #38bdf8, #818cf8);
-        animation: loaderSlide 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        transform: translateX(-100%);
+        animation: loaderSlide 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
       }
       @keyframes loaderPulse {
-        0% { transform: scale(0.96); opacity: 0.88; }
-        100% { transform: scale(1.04); opacity: 1; }
+        0% { transform: scale(0.94); opacity: 0.85; }
+        50% { transform: scale(1.03); opacity: 1; }
+        100% { transform: scale(1); opacity: 1; }
       }
       @keyframes loaderSlide {
-        0% { left: -45%; }
-        100% { left: 100%; }
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(0%); }
       }
     </style>
   </head>

@@ -650,3 +650,133 @@ input, textarea, [contenteditable="true"] {
     min-width: 100%;
   }
 }
+
+/* =====================================================================
+   STITCHING WIREFRAME ASSEMBLY SYSTEM (0.5s APP OPEN & SCROLL STITCH)
+   ===================================================================== */
+
+/* 0.5s Fast App Boot Screen */
+.boot-screen .brand-mark {
+  animation: classflow-logo-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both !important;
+}
+
+.loader-line:after {
+  animation: load 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+/* Stitched state */
+.is-stitching {
+  position: relative !important;
+  animation: stitchCard 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+  will-change: transform, opacity;
+}
+
+/* 4 Wireframe Corner Anchors (┌ ┐ └ ┘) */
+.is-stitching::before {
+  content: '' !important;
+  position: absolute !important;
+  inset: 0 !important;
+  pointer-events: none !important;
+  z-index: 30 !important;
+  border-radius: inherit !important;
+  background:
+    linear-gradient(to right, #38bdf8 3px, transparent 3px) 0 0,
+    linear-gradient(to bottom, #38bdf8 3px, transparent 3px) 0 0,
+    linear-gradient(to left, #38bdf8 3px, transparent 3px) 100% 0,
+    linear-gradient(to bottom, #38bdf8 3px, transparent 3px) 100% 0,
+    linear-gradient(to right, #38bdf8 3px, transparent 3px) 0 100%,
+    linear-gradient(to top, #38bdf8 3px, transparent 3px) 0 100%,
+    linear-gradient(to left, #38bdf8 3px, transparent 3px) 100% 100%,
+    linear-gradient(to top, #38bdf8 3px, transparent 3px) 100% 100% !important;
+  background-repeat: no-repeat !important;
+  background-size: 14px 14px !important;
+  animation: stitchCorners 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+/* Wireframe Dashed Stitch Perimeter & Blueprint Glow */
+.is-stitching::after {
+  content: '' !important;
+  position: absolute !important;
+  inset: 0 !important;
+  pointer-events: none !important;
+  z-index: 29 !important;
+  border-radius: inherit !important;
+  border: 1.5px dashed #38bdf8 !important;
+  animation: stitchBorder 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+@keyframes stitchCard {
+  0% {
+    opacity: 0.2;
+    transform: translateY(6px) scale(0.985);
+  }
+  40% {
+    opacity: 0.92;
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes stitchCorners {
+  0% {
+    opacity: 0;
+    transform: scale(0.92);
+    filter: drop-shadow(0 0 6px #38bdf8);
+  }
+  25% {
+    opacity: 1;
+    transform: scale(1.02);
+    filter: drop-shadow(0 0 10px #38bdf8);
+  }
+  75% {
+    opacity: 0.85;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+    filter: none;
+  }
+}
+
+@keyframes stitchBorder {
+  0% {
+    opacity: 0.95;
+    border-color: #38bdf8;
+    box-shadow: 0 0 16px rgba(56, 189, 248, 0.3), inset 0 0 12px rgba(56, 189, 248, 0.12);
+    transform: scale(0.985);
+  }
+  60% {
+    opacity: 0.8;
+    border-color: #818cf8;
+    box-shadow: 0 0 20px rgba(129, 140, 248, 0.35);
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    border-color: transparent;
+    box-shadow: none;
+    transform: scale(1);
+  }
+}
+
+/* Light mode adjustments */
+:root:not([data-theme="dark"]) .is-stitching::before {
+  background:
+    linear-gradient(to right, #0284c7 3px, transparent 3px) 0 0,
+    linear-gradient(to bottom, #0284c7 3px, transparent 3px) 0 0,
+    linear-gradient(to left, #0284c7 3px, transparent 3px) 100% 0,
+    linear-gradient(to bottom, #0284c7 3px, transparent 3px) 100% 0,
+    linear-gradient(to right, #0284c7 3px, transparent 3px) 0 100%,
+    linear-gradient(to top, #0284c7 3px, transparent 3px) 0 100%,
+    linear-gradient(to left, #0284c7 3px, transparent 3px) 100% 100%,
+    linear-gradient(to top, #0284c7 3px, transparent 3px) 100% 100% !important;
+  background-repeat: no-repeat !important;
+  background-size: 14px 14px !important;
+}
+
+:root:not([data-theme="dark"]) .is-stitching::after {
+  border-color: #0284c7 !important;
+}
