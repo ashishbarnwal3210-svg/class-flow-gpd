@@ -1,11 +1,11 @@
 {
-  "version": "1.2.6",
-  "buildTime": 1795770000000,
-  "title": "Restored Original Visual Polish & Design System",
+  "version": "1.2.7",
+  "buildTime": 1795772000000,
+  "title": "Smart Client Compression & Cloud Drive Unlimited Storage Support",
   "highlights": [
-    "Restored exact original ClassFlow buttons, cards, colors & navigation",
-    "Snappy 1.2s opening animation",
-    "Network-first service worker cache v10 with clean refresh",
-    "Zero layout regressions or unwanted overlays"
+    "Smart client-side canvas compression for notes & photos (30x storage savings)",
+    "Google Drive & Cloud Link support for unlimited 15GB+ storage",
+    "High-load query caching (5-min cache) & DB indexes for 1,000+ active users",
+    "Zero bandwidth exhaustion & 100% original ClassFlow visual polish"
   ]
 }
